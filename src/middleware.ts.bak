@@ -1,0 +1,7 @@
+/**
+ * @deprecated Next.js 16 から proxy.ts に移行済み。このファイルは削除してください。
+ * @file middleware.ts → src/proxy.ts に移行済み
+ */
+
+// Next.js 16 では proxy.ts を使用します。このファイルは空のままにしてください。
+// （削除するのが理想ですが、空ファイルとして残しています）

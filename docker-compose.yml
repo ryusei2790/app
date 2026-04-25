@@ -1,0 +1,25 @@
+# =============================================================================
+# docker-compose.yml — 開発環境全体の定義
+# 役割: Next.js アプリコンテナを起動する。
+#       Supabase（DB・Auth）は Supabase CLI が別途管理するため含めない。
+# =============================================================================
+
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    volumes:
+      # ソースコードをホストと同期（ホットリロード対応）
+      - ./src:/app/src
+      # node_modules はコンテナ内のものを使う（ホストと混在させない）
+      - /app/node_modules
+    environment:
+      # Supabase CLIが起動するローカルURLを指定（supabase start 後に確認）
+      - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      # Prisma用PostgreSQL接続文字列（Supabase CLIローカルDB）
+      - DATABASE_URL=${DATABASE_URL}
+    env_file:
+      - .env.local
