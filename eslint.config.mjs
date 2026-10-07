@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Prisma が生成するコード（自分で書いたものではないので lint しない）
+    "src/generated/**",
+    "test-results/**",
+    "playwright-report/**",
   ]),
 ]);
 
