@@ -13,6 +13,7 @@ export interface NavItem {
 const COMMON_ITEMS: NavItem[] = [
   { href: "/calendar", label: "カレンダー", icon: "📅" },
   { href: "/dashboard", label: "ダッシュボード", icon: "📊" },
+  { href: "/receipts/new", label: "レシート", icon: "📷" },
   { href: "/transactions", label: "収支一覧", icon: "📋" },
   { href: "/import", label: "CSVインポート", icon: "📥" },
   { href: "/fixed-costs", label: "定期支出", icon: "🔁" },
