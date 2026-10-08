@@ -228,9 +228,8 @@ describe("S7 body の user_id は無視し、ログイン中のユーザーで�
     expect(fc.data.user_id).toBe(B.id);
   });
 
-  // レシート API（/api/v1/receipts/parse・/api/v1/receipts）は D（P1〜P10）で作る。
-  // 作るときにこの todo を本物のテストにする（S7 の本来の対象）。
-  it.todo("レシート API に他人の user_id を body で渡しても無視され、JWT の user で処理される");
+  // レシート API（/api/v1/receipts/parse・/api/v1/receipts）の S7 は、AI 提供元を偽物に差し替える必要があるので
+  // tests/api/receipts-api.test.ts の「S7 他人の user_id・口座を body で渡しても無視・拒否」に置いている。
 });
 
 describe("S8 集計 API は自分の分しか返さない", () => {
