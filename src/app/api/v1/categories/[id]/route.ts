@@ -2,7 +2,8 @@
  * @file api/v1/categories/[id]/route.ts
  * @description カテゴリ更新（PUT）・削除（DELETE）エンドポイント。
  * - デフォルトカテゴリ（is_default=true）は更新・削除不可
- * - 削除時に transactions が紐付いている場合は 409 Conflict
+ * - 削除時に取引（論理削除済みも含む）・固定費が紐付いている場合は 409 Conflict（T4）
+ *   取引を孤児にしないため。DB の外部キーでも止まるが、500 ではなく理由の分かる 409 を返す
  * DB には withUserDb（RLS が効く）経由でだけ触る。
  */
 
@@ -58,16 +59,24 @@ export async function DELETE(_request: Request, { params }: Params) {
       return error("FORBIDDEN", "デフォルトカテゴリは削除できません", 403);
     }
 
-    // 使用中の transactions がある場合は削除不可
-    const usageCount = await db.transaction.count({
-      where: { categoryId: id, userId: user.id, deletedAt: null },
-    });
-    if (usageCount > 0) {
+    // 使っているものがあれば削除不可（論理削除済みの取引も行は残っているので数える）
+    const [txCount, deletedTxCount, fixedCostCount] = await Promise.all([
+      db.transaction.count({ where: { categoryId: id, userId: user.id, deletedAt: null } }),
+      db.transaction.count({ where: { categoryId: id, userId: user.id, deletedAt: { not: null } } }),
+      db.fixedCost.count({ where: { categoryId: id, userId: user.id } }),
+    ]);
+    if (txCount > 0) {
       return error(
         "CONFLICT",
-        `このカテゴリは ${usageCount} 件の収支で使用中です。先に収支を変更してください。`,
+        `このカテゴリは ${txCount} 件の収支で使用中です。先に収支を変更してください。`,
         409
       );
+    }
+    if (fixedCostCount > 0) {
+      return error("CONFLICT", `このカテゴリは ${fixedCostCount} 件の固定費で使用中です。先に固定費を変更してください。`, 409);
+    }
+    if (deletedTxCount > 0) {
+      return error("CONFLICT", "このカテゴリには削除済みの固定費の収支が残っているため削除できません。", 409);
     }
 
     await db.category.delete({ where: { id, userId: user.id } });

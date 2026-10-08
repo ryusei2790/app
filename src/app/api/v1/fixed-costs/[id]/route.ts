@@ -7,6 +7,7 @@
 
 import { isUuid, withUserDb } from "@/lib/db";
 import { checkRefs, normalizeCategoryId } from "@/lib/ownership";
+import { parseYenAmount } from "@/lib/validation/transaction";
 import { ok, error, requireAuth, readJsonBody, serializeFixedCost } from "@/lib/api-helpers";
 
 type Params = { params: Promise<{ id: string }> };
@@ -28,10 +29,9 @@ export async function PUT(request: Request, { params }: Params) {
   const updateData: Record<string, unknown> = {};
   if (body.name !== undefined) updateData.name = body.name;
   if (body.amount !== undefined) {
-    if (typeof body.amount !== "number" || body.amount <= 0) {
-      return error("VALIDATION_ERROR", "amount は正の数値を指定してください", 422);
-    }
-    updateData.amount = body.amount;
+    const amount = parseYenAmount(body.amount);
+    if (!amount.ok) return error("VALIDATION_ERROR", amount.message, 422);
+    updateData.amount = amount.value;
   }
   if (body.billing_day !== undefined) {
     const day = body.billing_day;

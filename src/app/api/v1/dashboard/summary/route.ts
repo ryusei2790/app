@@ -9,6 +9,7 @@
 import { NextRequest } from "next/server";
 import { withUserDb } from "@/lib/db";
 import { ok, error, requireAuth } from "@/lib/api-helpers";
+import { isValidYearMonth } from "@/lib/date/jst";
 import type { DashboardSummary, CategorySummary } from "@/types/api";
 
 type SummaryRow = { type: string; category_id: string | null; total: unknown };
@@ -22,8 +23,8 @@ export async function GET(request: NextRequest) {
   const year = parseInt(searchParams.get("year") ?? "");
   const month = parseInt(searchParams.get("month") ?? "");
 
-  if (isNaN(year) || isNaN(month)) {
-    return error("VALIDATION_ERROR", "year と month は必須です", 422);
+  if (!isValidYearMonth(year, month)) {
+    return error("VALIDATION_ERROR", "year と month（1〜12）は必須です", 422);
   }
 
   const { rows, categories } = await withUserDb(user.id, async (db) => {

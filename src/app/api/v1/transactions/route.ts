@@ -9,6 +9,8 @@
 import { NextRequest } from "next/server";
 import { withUserDb } from "@/lib/db";
 import { checkRefs, normalizeCategoryId } from "@/lib/ownership";
+import { parseDateOnly, parseYenAmount } from "@/lib/validation/transaction";
+import { dateOnlyToDb, isValidYearMonth, monthRange } from "@/lib/date/jst";
 import { ok, created, error, requireAuth, readJsonBody, serializeTransaction } from "@/lib/api-helpers";
 
 /** GET /api/v1/transactions — 収支一覧取得 */
@@ -20,9 +22,9 @@ export async function GET(request: NextRequest) {
   const year = parseInt(searchParams.get("year") ?? "");
   const month = parseInt(searchParams.get("month") ?? "");
 
-  // year・month は必須パラメータ
-  if (isNaN(year) || isNaN(month)) {
-    return error("VALIDATION_ERROR", "year と month は必須です", 422);
+  // year・month は必須パラメータ（月は 1〜12）
+  if (!isValidYearMonth(year, month)) {
+    return error("VALIDATION_ERROR", "year と month（1〜12）は必須です", 422);
   }
 
   const accountId = searchParams.get("account_id");
@@ -30,16 +32,15 @@ export async function GET(request: NextRequest) {
   const type = searchParams.get("type");
   const source = searchParams.get("source");
 
-  // 指定年月の開始日・終了日を計算
-  const startDate = new Date(year, month - 1, 1);
-  const endDate = new Date(year, month, 0); // 月末日
+  // 指定年月の範囲 [1日, 翌月1日)。サーバーの TZ に依存しない（T3）
+  const range = monthRange(year, month);
 
   const transactions = await withUserDb(user.id, (db) =>
     db.transaction.findMany({
       where: {
         userId: user.id,
         deletedAt: null, // 論理削除されていないものだけ
-        transactionDate: { gte: startDate, lte: endDate },
+        transactionDate: range,
         ...(accountId ? { accountId } : {}),
         ...(categoryId ? { categoryId } : {}),
         ...(type ? { type } : {}),
@@ -66,8 +67,8 @@ export async function POST(request: NextRequest) {
   const body = parsed.body;
 
   // バリデーション
-  const { account_id, amount, type, transaction_date } = body;
-  if (!account_id || !amount || !type || !transaction_date) {
+  const { account_id, type } = body;
+  if (!account_id || body.amount === undefined || !type || body.transaction_date === undefined) {
     return error(
       "VALIDATION_ERROR",
       "account_id, amount, type, transaction_date は必須です",
@@ -77,9 +78,12 @@ export async function POST(request: NextRequest) {
   if (!["income", "expense"].includes(type as string)) {
     return error("VALIDATION_ERROR", "type は income または expense です", 422);
   }
-  if ((amount as number) <= 0) {
-    return error("VALIDATION_ERROR", "amount は正の値を指定してください", 422);
-  }
+  // 金額は1円以上の整数円（T1）
+  const amount = parseYenAmount(body.amount);
+  if (!amount.ok) return error("VALIDATION_ERROR", amount.message, 422);
+  // 日付は実在する YYYY-MM-DD（未来日は可。T2）
+  const date = parseDateOnly(body.transaction_date);
+  if (!date.ok) return error("VALIDATION_ERROR", date.message, 422);
   const categoryId = normalizeCategoryId(body.category_id) ?? null;
 
   return withUserDb(user.id, async (db) => {
@@ -92,9 +96,9 @@ export async function POST(request: NextRequest) {
         userId: user.id,
         accountId: account_id as string,
         categoryId: categoryId as string | null,
-        amount: amount as number,
+        amount: amount.value,
         type: type as string,
-        transactionDate: new Date(transaction_date as string),
+        transactionDate: dateOnlyToDb(date.value),
         note: (body.note as string | undefined) ?? null,
         source: "manual",
       },

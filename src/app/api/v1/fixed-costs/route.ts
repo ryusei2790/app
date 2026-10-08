@@ -6,6 +6,7 @@
 
 import { withUserDb } from "@/lib/db";
 import { checkRefs, normalizeCategoryId } from "@/lib/ownership";
+import { parseYenAmount } from "@/lib/validation/transaction";
 import { ok, created, error, requireAuth, readJsonBody, serializeFixedCost } from "@/lib/api-helpers";
 
 const INCLUDE = {
@@ -38,8 +39,8 @@ export async function POST(request: Request) {
   if (parsed.response) return parsed.response;
   const body = parsed.body;
 
-  const { account_id, name, amount, billing_day } = body;
-  if (!account_id || !name || !amount || !billing_day) {
+  const { account_id, name, billing_day } = body;
+  if (!account_id || !name || body.amount === undefined || !billing_day) {
     return error(
       "VALIDATION_ERROR",
       "account_id, name, amount, billing_day は必須です",
@@ -49,9 +50,8 @@ export async function POST(request: Request) {
   if (typeof billing_day !== "number" || billing_day < 1 || billing_day > 31) {
     return error("VALIDATION_ERROR", "billing_day は 1〜31 で指定してください", 422);
   }
-  if (typeof amount !== "number" || amount <= 0) {
-    return error("VALIDATION_ERROR", "amount は正の値を指定してください", 422);
-  }
+  const amount = parseYenAmount(body.amount);
+  if (!amount.ok) return error("VALIDATION_ERROR", amount.message, 422);
   const categoryId = normalizeCategoryId(body.category_id) ?? null;
 
   return withUserDb(user.id, async (db) => {
@@ -65,7 +65,7 @@ export async function POST(request: Request) {
         accountId: account_id as string,
         categoryId: categoryId as string | null,
         name: String(name),
-        amount,
+        amount: amount.value,
         billingDay: billing_day,
         isActive: typeof body.is_active === "boolean" ? body.is_active : true,
       },

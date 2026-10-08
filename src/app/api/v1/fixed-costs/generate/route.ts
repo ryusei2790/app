@@ -9,6 +9,7 @@
 
 import { withUserDb } from "@/lib/db";
 import { ok, error, requireAuth, readJsonBody } from "@/lib/api-helpers";
+import { daysInMonth, isValidYearMonth, monthRange } from "@/lib/date/jst";
 
 /** POST /api/v1/fixed-costs/generate — 固定費の月次生成 */
 export async function POST(request: Request) {
@@ -19,7 +20,7 @@ export async function POST(request: Request) {
   if (parsed.response) return parsed.response;
   const year = parsed.body.year as number;
   const month = parsed.body.month as number;
-  if (!year || !month || month < 1 || month > 12) {
+  if (!isValidYearMonth(year, month)) {
     return error("VALIDATION_ERROR", "有効な year と month を指定してください", 422);
   }
 
@@ -33,14 +34,14 @@ export async function POST(request: Request) {
     }
 
     // 当月分の固定費transactions が既に存在するIDを取得（冪等性チェック）
-    const startDate = new Date(year, month - 1, 1);
-    const endDate = new Date(year, month, 0);
+    // 月の範囲はサーバーの TZ に依存しない形で作る（T3 と同じ理由）
+    const range = monthRange(year, month);
     const existingFixedCostIds = await db.transaction
       .findMany({
         where: {
           userId: user.id,
           source: "auto",
-          transactionDate: { gte: startDate, lte: endDate },
+          transactionDate: range,
           fixedCostId: { not: null },
           deletedAt: null,
         },
@@ -58,8 +59,7 @@ export async function POST(request: Request) {
     await db.transaction.createMany({
       data: toGenerate.map((fc) => {
         // billing_day が月末を超える場合は月末に丸める
-        const maxDay = new Date(year, month, 0).getDate();
-        const day = Math.min(fc.billingDay, maxDay);
+        const day = Math.min(fc.billingDay, daysInMonth(year, month));
         return {
           userId: user.id,
           accountId: fc.accountId,
@@ -67,7 +67,7 @@ export async function POST(request: Request) {
           fixedCostId: fc.id,
           amount: fc.amount,
           type: "expense" as const,
-          transactionDate: new Date(year, month - 1, day),
+          transactionDate: new Date(Date.UTC(year, month - 1, day)),
           note: fc.name,
           source: "auto" as const,
         };

@@ -1,7 +1,8 @@
 /**
  * @file api/v1/accounts/[id]/route.ts
  * @description 口座更新（PUT）・削除（DELETE）エンドポイント。
- * - 削除時に transactions が紐付いている場合は 409 Conflict
+ * - 削除時に取引（論理削除済みも含む）・固定費・CSV 取込履歴が紐付いている場合は 409 Conflict（T4）
+ *   取引を孤児にしないため。DB の外部キーでも止まるが、500 ではなく理由の分かる 409 を返す
  * DB には withUserDb（RLS が効く）経由でだけ触る。
  */
 
@@ -49,16 +50,25 @@ export async function DELETE(_request: Request, { params }: Params) {
     const account = await db.account.findFirst({ where: { id, userId: user.id } });
     if (!account) return NOT_FOUND();
 
-    // 関連する transactions がある場合は削除不可
-    const usageCount = await db.transaction.count({
-      where: { accountId: id, userId: user.id, deletedAt: null },
-    });
-    if (usageCount > 0) {
+    // 使っているものがあれば削除不可（論理削除済みの取引も行は残っているので数える）
+    const [txCount, deletedTxCount, fixedCostCount, importCount] = await Promise.all([
+      db.transaction.count({ where: { accountId: id, userId: user.id, deletedAt: null } }),
+      db.transaction.count({ where: { accountId: id, userId: user.id, deletedAt: { not: null } } }),
+      db.fixedCost.count({ where: { accountId: id, userId: user.id } }),
+      db.csvImport.count({ where: { accountId: id, userId: user.id } }),
+    ]);
+    if (txCount > 0) {
       return error(
         "CONFLICT",
-        `この口座は ${usageCount} 件の収支で使用中です。先に収支を変更してください。`,
+        `この口座は ${txCount} 件の収支で使用中です。先に収支を変更してください。`,
         409
       );
+    }
+    if (fixedCostCount > 0) {
+      return error("CONFLICT", `この口座は ${fixedCostCount} 件の固定費で使用中です。先に固定費を変更してください。`, 409);
+    }
+    if (deletedTxCount > 0 || importCount > 0) {
+      return error("CONFLICT", "この口座には過去の記録（削除済みの固定費の収支・CSV 取込履歴）が残っているため削除できません。", 409);
     }
 
     await db.account.delete({ where: { id, userId: user.id } });

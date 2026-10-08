@@ -9,6 +9,8 @@
 import { NextRequest } from "next/server";
 import { isUuid, withUserDb } from "@/lib/db";
 import { checkRefs, normalizeCategoryId } from "@/lib/ownership";
+import { parseDateOnly, parseYenAmount } from "@/lib/validation/transaction";
+import { dateOnlyToDb } from "@/lib/date/jst";
 import { ok, error, requireAuth, readJsonBody, serializeTransaction } from "@/lib/api-helpers";
 
 type Params = { params: Promise<{ id: string }> };
@@ -50,10 +52,10 @@ export async function PUT(request: NextRequest, { params }: Params) {
   // 更新可能なフィールドのみ抽出（source・user_id の変更は不可）
   const updateData: Record<string, unknown> = {};
   if (body.amount !== undefined) {
-    if (typeof body.amount !== "number" || body.amount <= 0) {
-      return error("VALIDATION_ERROR", "amount は正の数値を指定してください", 422);
-    }
-    updateData.amount = body.amount;
+    // 金額は1円以上の整数円（T1）
+    const amount = parseYenAmount(body.amount);
+    if (!amount.ok) return error("VALIDATION_ERROR", amount.message, 422);
+    updateData.amount = amount.value;
   }
   if (body.type !== undefined) {
     if (!["income", "expense"].includes(body.type as string)) {
@@ -62,7 +64,10 @@ export async function PUT(request: NextRequest, { params }: Params) {
     updateData.type = body.type;
   }
   if (body.transaction_date !== undefined) {
-    updateData.transactionDate = new Date(body.transaction_date as string);
+    // 日付は実在する YYYY-MM-DD（未来日は可。T2）
+    const date = parseDateOnly(body.transaction_date);
+    if (!date.ok) return error("VALIDATION_ERROR", date.message, 422);
+    updateData.transactionDate = dateOnlyToDb(date.value);
   }
   const categoryId = body.category_id !== undefined ? normalizeCategoryId(body.category_id) : undefined;
   if (categoryId !== undefined) updateData.categoryId = categoryId;
