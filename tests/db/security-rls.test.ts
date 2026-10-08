@@ -19,7 +19,9 @@ import {
 } from "../helpers/local-supabase";
 
 /** アプリが使う表（public スキーマ）。新しい表を足したらここにも足す */
-const APP_TABLES = ["profiles", "accounts", "categories", "fixed_costs", "csv_imports", "transactions"];
+const APP_TABLES = [
+  "profiles", "accounts", "categories", "fixed_costs", "csv_imports", "transactions", "receipt_parse_logs",
+];
 
 let A: TestUser;
 let B: TestUser;
