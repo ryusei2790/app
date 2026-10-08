@@ -249,6 +249,40 @@ src/
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase Publishable キー |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase Secret キー（サーバーサイドのみ） |
 | `DATABASE_URL` | PostgreSQL 接続 URL（Prisma 用） |
+| `OWNER_USER_IDS` | 社長専用機能（予算台帳）を使える Supabase ユーザー ID（カンマ区切り）。未設定なら誰も使えない。**値はコードに書かない** |
+
+---
+
+## テスト
+
+テスト駆動で進めています（Issue ryusei2790/mywork#229）。テストの一覧と ID（S1〜S8, T1〜T4 …）は設計資料側にあります。
+
+| コマンド | 中身 | 必要なもの |
+|---|---|---|
+| `npm test` | 単体テスト（`tests/unit`）。DB 不要、数秒 | なし |
+| `npm run test:db` | DB 結合・API テスト（`tests/db`, `tests/api`）。ローカル Supabase に RLS 有効のまま繋ぐ | `supabase start` |
+| `npm run test:all` | 上の2つを両方 | `supabase start` |
+| `npm run test:e2e` | Playwright（`tests/e2e`、スマホ幅 375px）。導入のみで、画面テスト W1〜W6 は今後 | `supabase start`、`npx playwright install chromium` |
+
+### ローカルでの立ち上げ
+
+```bash
+npm ci
+npx prisma generate
+supabase start                 # 初回は Docker イメージの取得で数分かかる
+supabase migration up          # 新しい migration を足したとき（既存 DB に追加で当てる）
+npm test && npm run test:db
+```
+
+- テストは `.env` / `.env.local` を読みません。接続先は `supabase status` から取り、**127.0.0.1 / localhost 以外の DB には繋がない**安全装置があります（`tests/helpers/global-setup.ts`）
+- ユーザーはテストごとにランダムなメール（`@example.test`）で作るので、DB を毎回作り直す必要はありません。作り直したいときは `npm run db:reset`
+- テストは `TZ=Asia/Tokyo` で動きます。本番（Vercel）は UTC なので、TZ に依存した日付計算があると落ちるようにしてあります
+
+### DB への触り方（重要）
+
+- DB には必ず `src/lib/db.ts` の `withUserDb(user.id, async (db) => ...)` 経由で触ります。中では Postgres のロールを `authenticated` に下げ、`auth.uid()` をログイン中のユーザーにしてから実行するので、**アプリの経路にも RLS が効きます**
+- route から `@/lib/prisma` を直接 import すると eslint エラーになります
+- それでもアプリ側で `userId` の絞り込みと参照先（口座・カテゴリ）の所有確認（`src/lib/ownership.ts`）を続けます（二重の守り）
 
 ---
 
