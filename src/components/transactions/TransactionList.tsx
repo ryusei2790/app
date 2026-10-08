@@ -29,7 +29,8 @@ function SourceBadge({ source }: { source: string }) {
   const config: Record<string, { label: string; class: string }> = {
     manual: { label: "手動", class: "bg-gray-100 text-gray-600" },
     csv: { label: "CSV", class: "bg-blue-100 text-blue-600" },
-    auto: { label: "固定費", class: "bg-purple-100 text-purple-600" },
+    auto: { label: "定期", class: "bg-purple-100 text-purple-600" },
+    receipt: { label: "レシート", class: "bg-amber-100 text-amber-700" },
   };
   const c = config[source] ?? config.manual;
   return (

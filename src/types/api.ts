@@ -35,6 +35,11 @@ export type ErrorCode =
   | "NOT_FOUND"
   | "VALIDATION_ERROR"
   | "CONFLICT"
+  | "PAYLOAD_TOO_LARGE"
+  | "UNSUPPORTED_MEDIA_TYPE"
+  | "RATE_LIMITED"
+  | "AI_UNAVAILABLE"
+  | "CANCELLED"
   | "INTERNAL_ERROR";
 
 // ─── Transactions ─────────────────────────────────────

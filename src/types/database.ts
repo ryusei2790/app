@@ -12,7 +12,7 @@ export type AccountType = "cash" | "credit_card" | "bank";
 export type TransactionType = "income" | "expense";
 
 /** トランザクションの発生元 */
-export type TransactionSource = "manual" | "csv" | "auto" | "api";
+export type TransactionSource = "manual" | "csv" | "auto" | "api" | "receipt";
 
 /** CSVインポートのステータス */
 export type CsvImportStatus = "pending" | "success" | "error";
