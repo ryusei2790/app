@@ -1,80 +1,110 @@
 /**
  * @file api/v1/fixed-costs/[id]/route.ts
- * @description 固定費更新（PUT）・削除（DELETE）エンドポイント。
- * PUT は金額変更・有効/無効切替に使う。
+ * @description 定期支出・定期収入の更新（PUT）・削除（DELETE）エンドポイント（テスト一覧 C）。
+ * - 更新は「以降の回」にだけ効く。作成済みの取引は書き換えない（R8。展開済みの印より前は展開しないため）
+ * - 一時停止→再開では、止めていた間の分を作らないよう展開済みの印を「昨日」まで進める（R7）
+ * - 削除しても作成済みの取引は残る（DB の外部キーが ON DELETE SET NULL）
+ * 口座・カテゴリの付け替え先は自分のもの（カテゴリは共通も可）だけ（S3）。
+ * DB には withUserDb（RLS が効く）経由でだけ触る。
  */
 
-import { NextRequest } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { ok, error, requireAuth, serializeFixedCost } from "@/lib/api-helpers";
+import { isUuid, withUserDb } from "@/lib/db";
+import { checkRefs, normalizeCategoryId } from "@/lib/ownership";
+import { checkRule, parseFixedCostInput } from "@/lib/validation/fixed-cost";
+import { dateOnlyToDb, dbToDateOnly, todayJst } from "@/lib/date/jst";
+import { addDays, type Cycle } from "@/lib/fixed-costs/schedule";
+import { ok, error, requireAuth, readJsonBody, serializeFixedCost } from "@/lib/api-helpers";
 
 type Params = { params: Promise<{ id: string }> };
 
-/** PUT /api/v1/fixed-costs/:id — 固定費更新 */
-export async function PUT(request: NextRequest, { params }: Params) {
+const NOT_FOUND = () => error("NOT_FOUND", "固定費が見つかりません", 404);
+
+/** PUT /api/v1/fixed-costs/:id — 更新 */
+export async function PUT(request: Request, { params }: Params) {
   const { user, response } = await requireAuth();
   if (response) return response;
 
   const { id } = await params;
+  if (!isUuid(id)) return NOT_FOUND();
 
-  const fixedCost = await prisma.fixedCost.findFirst({
-    where: { id, userId: user.id },
-  });
-  if (!fixedCost) {
-    return error("NOT_FOUND", "固定費が見つかりません", 404);
-  }
+  const parsed = await readJsonBody(request);
+  if (parsed.response) return parsed.response;
+  const body = parsed.body;
 
-  let body: Record<string, unknown>;
-  try {
-    body = await request.json();
-  } catch {
-    return error("VALIDATION_ERROR", "リクエストボディが不正です", 422);
-  }
+  const today = todayJst();
+  const patch = parseFixedCostInput(body, "update", today);
+  if (!patch.ok) return error("VALIDATION_ERROR", patch.message, 422);
+  const categoryId = body.category_id !== undefined ? normalizeCategoryId(body.category_id) : undefined;
+  const accountId = body.account_id !== undefined ? body.account_id : undefined;
 
-  const updateData: Record<string, unknown> = {};
-  if (body.name !== undefined) updateData.name = body.name;
-  if (body.amount !== undefined) {
-    if (typeof body.amount !== "number" || body.amount <= 0) {
-      return error("VALIDATION_ERROR", "amount は正の数値を指定してください", 422);
+  return withUserDb(user.id, async (db) => {
+    const current = await db.fixedCost.findFirst({ where: { id, userId: user.id } });
+    if (!current) return NOT_FOUND();
+
+    // 1. 既存の値に送られた項目を重ね、周期との組み合わせを確かめる（例: 毎年に変えるなら支払月が要る）
+    const merged = checkRule({
+      name: current.name,
+      amount: Number(current.amount),
+      type: current.type as "income" | "expense",
+      cycle: current.cycle as Cycle,
+      billingDay: current.billingDay,
+      billingMonth: current.billingMonth,
+      startDate: dbToDateOnly(current.startDate),
+      endDate: current.endDate ? dbToDateOnly(current.endDate) : null,
+      isActive: current.isActive,
+      ...patch.value,
+    });
+    if (!merged.ok) return error("VALIDATION_ERROR", merged.message, 422);
+    const f = merged.value;
+
+    const refs = await checkRefs(db, user.id, { accountId, categoryId });
+    if (!refs.ok) return error("NOT_FOUND", refs.message, 404);
+
+    // 2. 再開（止めていた→有効）なら、止めていた間の分は作らない
+    let generatedThrough = current.generatedThrough;
+    if (!current.isActive && f.isActive) {
+      const yesterday = dateOnlyToDb(addDays(today, -1));
+      if (!generatedThrough || generatedThrough < yesterday) generatedThrough = yesterday;
     }
-    updateData.amount = body.amount;
-  }
-  if (body.billing_day !== undefined) {
-    const day = body.billing_day as number;
-    if (day < 1 || day > 31) {
-      return error("VALIDATION_ERROR", "billing_day は 1〜31 で指定してください", 422);
-    }
-    updateData.billingDay = day;
-  }
-  if (body.is_active !== undefined) updateData.isActive = body.is_active;
-  if (body.category_id !== undefined) updateData.categoryId = body.category_id;
 
-  const updated = await prisma.fixedCost.update({
-    where: { id },
-    data: updateData,
-    include: {
-      category: { select: { id: true, name: true, color: true } },
-      account: { select: { id: true, name: true, type: true } },
-    },
+    const updated = await db.fixedCost.update({
+      where: { id, userId: user.id },
+      data: {
+        name: f.name,
+        amount: f.amount,
+        type: f.type,
+        cycle: f.cycle,
+        billingDay: f.billingDay,
+        billingMonth: f.billingMonth,
+        startDate: dateOnlyToDb(f.startDate),
+        endDate: f.endDate ? dateOnlyToDb(f.endDate) : null,
+        isActive: f.isActive,
+        generatedThrough,
+        ...(accountId !== undefined ? { accountId: accountId as string } : {}),
+        ...(categoryId !== undefined ? { categoryId: categoryId as string | null } : {}),
+      },
+      include: {
+        category: { select: { id: true, name: true, color: true } },
+        account: { select: { id: true, name: true, type: true } },
+      },
+    });
+    return ok(serializeFixedCost(updated));
   });
-
-  return ok(serializeFixedCost(updated));
 }
 
-/** DELETE /api/v1/fixed-costs/:id — 固定費削除 */
-export async function DELETE(_request: NextRequest, { params }: Params) {
+/** DELETE /api/v1/fixed-costs/:id — 削除（作成済みの取引は残る） */
+export async function DELETE(_request: Request, { params }: Params) {
   const { user, response } = await requireAuth();
   if (response) return response;
 
   const { id } = await params;
+  if (!isUuid(id)) return NOT_FOUND();
 
-  const fixedCost = await prisma.fixedCost.findFirst({
-    where: { id, userId: user.id },
+  return withUserDb(user.id, async (db) => {
+    const fixedCost = await db.fixedCost.findFirst({ where: { id, userId: user.id }, select: { id: true } });
+    if (!fixedCost) return NOT_FOUND();
+
+    await db.fixedCost.delete({ where: { id, userId: user.id } });
+    return ok({ id });
   });
-  if (!fixedCost) {
-    return error("NOT_FOUND", "固定費が見つかりません", 404);
-  }
-
-  await prisma.fixedCost.delete({ where: { id } });
-  return ok({ id });
 }

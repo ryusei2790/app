@@ -1,86 +1,22 @@
 /**
  * @file api/v1/fixed-costs/generate/route.ts
- * @description 固定費の月次自動生成エンドポイント。
- * ログイン時に呼び出し、指定年月の固定費が未生成の場合のみ transactions に挿入する。
- * 冪等性を保証する（何度呼んでも二重生成しない）。
+ * @description 画面を開いたときに、ログイン中の本人の定期支出・定期収入を今日（JST）まで展開する。
+ * 毎日の定期実行（api/cron/fixed-costs）と同じ処理（lib/fixed-costs/expand.ts）を本人の分だけ呼ぶ。
+ * 冪等（何度呼んでも二重に作らない）。旧版の body（year, month）は受け取っても使わない。
+ * DB には withUserDb（RLS が効く）経由でだけ触る。
  */
 
-import { NextRequest } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { ok, error, requireAuth } from "@/lib/api-helpers";
-import type { GenerateFixedCostsRequest } from "@/types/api";
+import { withUserDb } from "@/lib/db";
+import { todayJst } from "@/lib/date/jst";
+import { expandFixedCostsForUser } from "@/lib/fixed-costs/expand";
+import { ok, requireAuth } from "@/lib/api-helpers";
 
-/** POST /api/v1/fixed-costs/generate — 固定費の月次生成 */
-export async function POST(request: NextRequest) {
+/** POST /api/v1/fixed-costs/generate — 本人の定期を今日まで展開 */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- 旧版の呼び出し（body 付き）と型を合わせるため受け取る
+export async function POST(_request: Request) {
   const { user, response } = await requireAuth();
   if (response) return response;
 
-  let body: GenerateFixedCostsRequest;
-  try {
-    body = await request.json();
-  } catch {
-    return error("VALIDATION_ERROR", "リクエストボディが不正です", 422);
-  }
-
-  const { year, month } = body;
-  if (!year || !month || month < 1 || month > 12) {
-    return error("VALIDATION_ERROR", "有効な year と month を指定してください", 422);
-  }
-
-  // is_active=true の固定費を全件取得
-  const activeFixedCosts = await prisma.fixedCost.findMany({
-    where: { userId: user.id, isActive: true },
-  });
-
-  if (activeFixedCosts.length === 0) {
-    return ok({ generated_count: 0 });
-  }
-
-  // 当月分の固定費transactions が既に存在するIDを取得（冪等性チェック）
-  const startDate = new Date(year, month - 1, 1);
-  const endDate = new Date(year, month, 0);
-
-  const existingFixedCostIds = await prisma.transaction
-    .findMany({
-      where: {
-        userId: user.id,
-        source: "auto",
-        transactionDate: { gte: startDate, lte: endDate },
-        fixedCostId: { not: null },
-        deletedAt: null,
-      },
-      select: { fixedCostId: true },
-    })
-    .then((rows) => new Set(rows.map((r) => r.fixedCostId)));
-
-  // 未生成の固定費のみ抽出
-  const toGenerate = activeFixedCosts.filter(
-    (fc) => !existingFixedCostIds.has(fc.id)
-  );
-
-  if (toGenerate.length === 0) {
-    return ok({ generated_count: 0 });
-  }
-
-  // 一括インサート（billing_day を transaction_date に使用）
-  await prisma.transaction.createMany({
-    data: toGenerate.map((fc) => {
-      // billing_day が月末を超える場合は月末に丸める
-      const maxDay = new Date(year, month, 0).getDate();
-      const day = Math.min(fc.billingDay, maxDay);
-      return {
-        userId: user.id,
-        accountId: fc.accountId,
-        categoryId: fc.categoryId,
-        fixedCostId: fc.id,
-        amount: fc.amount,
-        type: "expense" as const,
-        transactionDate: new Date(year, month - 1, day),
-        note: fc.name,
-        source: "auto" as const,
-      };
-    }),
-  });
-
-  return ok({ generated_count: toGenerate.length });
+  const generated = await withUserDb(user.id, (db) => expandFixedCostsForUser(db, user.id, todayJst()));
+  return ok({ generated_count: generated });
 }

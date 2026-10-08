@@ -8,7 +8,10 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Sidebar } from "@/components/layout/Sidebar";
+import { MobileNav } from "@/components/layout/MobileNav";
+import { OfflineNotice } from "@/components/pwa/OfflineNotice";
 import { FixedCostGenerateTrigger } from "@/components/layout/FixedCostGenerateTrigger";
+import { isOwner } from "@/lib/features";
 
 export default async function DashboardLayout({
   children,
@@ -26,10 +29,15 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="flex h-screen bg-gray-50">
-      <Sidebar userEmail={user.email ?? ""} />
-      <main className="flex-1 overflow-y-auto">{children}</main>
-      {/* 固定費の月次自動生成：ログイン後の初回ロードで当月分を生成する */}
+    <div className="flex h-screen flex-col bg-gray-50 md:flex-row">
+      {/* 広い画面はサイドバー、スマホ幅は上部バー＋メニュー */}
+      <Sidebar userEmail={user.email ?? ""} isOwner={isOwner(user)} />
+      <MobileNav userEmail={user.email ?? ""} isOwner={isOwner(user)} />
+      <main className="min-w-0 flex-1 overflow-y-auto">
+        <OfflineNotice />
+        {children}
+      </main>
+      {/* 定期支出の展開：画面を開いたとき今日までの分を作る（本命は毎日の定期実行） */}
       <FixedCostGenerateTrigger />
     </div>
   );
