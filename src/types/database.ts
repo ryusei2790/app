@@ -71,7 +71,12 @@ export interface FixedCost {
   category_id: string | null;
   name: string;
   amount: number;
-  billing_day: number;
+  type: "income" | "expense";
+  cycle: "weekly" | "biweekly" | "monthly" | "yearly";
+  billing_day: number | null;
+  billing_month: number | null;
+  start_date: string;
+  end_date: string | null;
   is_active: boolean;
   created_at: string;
 }

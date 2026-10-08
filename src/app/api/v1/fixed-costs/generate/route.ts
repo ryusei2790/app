@@ -12,6 +12,7 @@ import { expandFixedCostsForUser } from "@/lib/fixed-costs/expand";
 import { ok, requireAuth } from "@/lib/api-helpers";
 
 /** POST /api/v1/fixed-costs/generate — 本人の定期を今日まで展開 */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- 旧版の呼び出し（body 付き）と型を合わせるため受け取る
 export async function POST(_request: Request) {
   const { user, response } = await requireAuth();
   if (response) return response;

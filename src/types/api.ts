@@ -84,13 +84,15 @@ export interface CreateFixedCostRequest {
   category_id?: string;
   name: string;
   amount: number;
-  billing_day: number;
+  type?: "income" | "expense";
+  cycle?: "weekly" | "biweekly" | "monthly" | "yearly";
+  /** 毎月・毎年で必須。毎週・隔週は不要（開始日の曜日で決まる） */
+  billing_day?: number | null;
+  /** 毎年で必須 */
+  billing_month?: number | null;
+  start_date?: string;
+  end_date?: string | null;
   is_active?: boolean;
-}
-
-export interface GenerateFixedCostsRequest {
-  year: number;
-  month: number;
 }
 
 // ─── CSV Import ──────────────────────────────────────
