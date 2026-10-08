@@ -40,7 +40,7 @@ afterAll(async () => {
 const jst = (s: string) => new Date(`${s.replace(" ", "T")}:00+09:00`);
 
 /** 予約して、そのまま成功で閉じる（＝1枚読んだ） */
-async function useOne(u: TestUser, now: Date) {
+async function readOne(u: TestUser, now: Date) {
   const r = await reserveReceiptParse({ id: u.id, email: u.email }, { now });
   if (r.ok) await finishReceiptParse(r.logId, u.id, "succeeded");
   return r;
@@ -49,8 +49,8 @@ async function useOne(u: TestUser, now: Date) {
 describe("L1 1日5枚まで。6枚目は日本語のメッセージで断る", () => {
   it("5枚目まで成功、同じ日の6枚目は user_day で拒否", async () => {
     const u = await newUser("l1");
-    for (let i = 0; i < 5; i++) expect((await useOne(u, jst(`2030-01-10 1${i}:00`))).ok).toBe(true);
-    const sixth = await useOne(u, jst("2030-01-10 20:00"));
+    for (let i = 0; i < 5; i++) expect((await readOne(u, jst(`2030-01-10 1${i}:00`))).ok).toBe(true);
+    const sixth = await readOne(u, jst("2030-01-10 20:00"));
     expect(sixth.ok).toBe(false);
     if (!sixth.ok) {
       expect(sixth.reason).toBe("user_day");
@@ -61,7 +61,7 @@ describe("L1 1日5枚まで。6枚目は日本語のメッセージで断る", (
   it("GET /api/v1/usage で今日・今月の使った枚数と上限が分かる", async () => {
     const u = await newUser("l1u");
     signInAs({ id: u.id, email: u.email });
-    await useOne(u, new Date());
+    await readOne(u, new Date());
     const res = await usage.GET(getRequest("/api/v1/usage"));
     expect(res.status).toBe(200);
     const { data } = await readJson(res);
@@ -78,9 +78,9 @@ describe("L1 1日5枚まで。6枚目は日本語のメッセージで断る", (
 describe("L2 日の切り替えは JST 0:00", () => {
   it("23:59 は同じ日、0:00 から新しい日", async () => {
     const u = await newUser("l2");
-    for (let i = 0; i < 5; i++) await useOne(u, jst(`2030-02-10 0${i}:00`));
-    expect((await useOne(u, jst("2030-02-10 23:59"))).ok).toBe(false);
-    expect((await useOne(u, jst("2030-02-11 00:00"))).ok).toBe(true);
+    for (let i = 0; i < 5; i++) await readOne(u, jst(`2030-02-10 0${i}:00`));
+    expect((await readOne(u, jst("2030-02-10 23:59"))).ok).toBe(false);
+    expect((await readOne(u, jst("2030-02-11 00:00"))).ok).toBe(true);
   });
 });
 
@@ -93,13 +93,13 @@ describe("L3 月30枚。翌月1日（JST）にリセット", () => {
          FROM generate_series(0, 29) g`,
       [u.id]
     );
-    const r = await useOne(u, jst("2030-03-31 23:00"));
+    const r = await readOne(u, jst("2030-03-31 23:00"));
     expect(r.ok).toBe(false);
     if (!r.ok) {
       expect(r.reason).toBe("user_month");
       expect(r.message).toMatch(/今月.*上限.*30枚/);
     }
-    expect((await useOne(u, jst("2030-04-01 00:00"))).ok).toBe(true);
+    expect((await readOne(u, jst("2030-04-01 00:00"))).ok).toBe(true);
   });
 });
 
@@ -115,13 +115,13 @@ describe("L4 アプリ全体で月3,000枚。社長アカウントは対象外",
     const owner = await newUser("l4-owner");
     process.env.OWNER_USER_IDS = owner.id;
 
-    const r = await useOne(normal, jst("2031-01-20 12:00"));
+    const r = await readOne(normal, jst("2031-01-20 12:00"));
     expect(r.ok).toBe(false);
     if (!r.ok) {
       expect(r.reason).toBe("global_month");
       expect(r.message).toMatch(/手入力/);
     }
-    expect((await useOne(owner, jst("2031-01-20 12:00"))).ok).toBe(true);
+    expect((await readOne(owner, jst("2031-01-20 12:00"))).ok).toBe(true);
   });
 
   it("社長が読んだ分は全体の枚数に数えない", async () => {
@@ -133,12 +133,12 @@ describe("L4 アプリ全体で月3,000枚。社長アカウントは対象外",
     );
     const owner = await newUser("l4b-owner");
     process.env.OWNER_USER_IDS = owner.id;
-    expect((await useOne(owner, jst("2031-02-06 12:00"))).ok).toBe(true);
+    expect((await readOne(owner, jst("2031-02-06 12:00"))).ok).toBe(true);
     delete process.env.OWNER_USER_IDS;
     const normal = await newUser("l4b-normal");
     // 社長の1枚を数えていなければ、まだ 2,999 枚なので一般ユーザーも1枚読める
-    expect((await useOne(normal, jst("2031-02-06 12:00"))).ok).toBe(true);
-    expect((await useOne(normal, jst("2031-02-06 12:01"))).ok).toBe(false);
+    expect((await readOne(normal, jst("2031-02-06 12:00"))).ok).toBe(true);
+    expect((await readOne(normal, jst("2031-02-06 12:01"))).ok).toBe(false);
   });
 });
 
@@ -165,8 +165,8 @@ describe("L6 AI の失敗・取り消しは枚数に数えない", () => {
       expect(r.ok).toBe(true);
       if (r.ok) await finishReceiptParse(r.logId, u.id, i === 0 ? "cancelled" : "failed");
     }
-    for (let i = 0; i < 5; i++) expect((await useOne(u, now)).ok).toBe(true);
-    expect((await useOne(u, now)).ok).toBe(false);
+    for (let i = 0; i < 5; i++) expect((await readOne(u, now)).ok).toBe(true);
+    expect((await readOne(u, now)).ok).toBe(false);
     const day = await getReceiptUsage(me, { now });
     expect(day.day.used).toBe(5);
   });
@@ -178,7 +178,7 @@ describe("L6 AI の失敗・取り消しは枚数に数えない", () => {
        SELECT $1, 'reserved', timestamptz '2030-07-10 09:00+09' FROM generate_series(1, 5)`,
       [u.id]
     );
-    expect((await useOne(u, jst("2030-07-10 09:10"))).ok).toBe(true);
+    expect((await readOne(u, jst("2030-07-10 09:10"))).ok).toBe(true);
   });
 
   it("他人の予約は閉じられない（user_id が違えば何もしない）", async () => {
@@ -196,8 +196,8 @@ describe("記録の守り（S5 と同じ考え方）", () => {
   it("利用者は自分の記録を読めるが、書き換え・追加・回数の関数は使えない", async () => {
     const u = await newUser("l-sec");
     const other = await newUser("l-sec-other");
-    await useOne(u, jst("2030-09-10 12:00"));
-    await useOne(other, jst("2030-09-10 12:00"));
+    await readOne(u, jst("2030-09-10 12:00"));
+    await readOne(other, jst("2030-09-10 12:00"));
 
     const mine = await u.client.from("receipt_parse_logs").select("user_id");
     expect(mine.error).toBeNull();
