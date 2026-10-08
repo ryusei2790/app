@@ -262,7 +262,7 @@ src/
 | `npm test` | 単体テスト（`tests/unit`）。DB 不要、数秒 | なし |
 | `npm run test:db` | DB 結合・API テスト（`tests/db`, `tests/api`）。ローカル Supabase に RLS 有効のまま繋ぐ | `supabase start` |
 | `npm run test:all` | 上の2つを両方 | `supabase start` |
-| `npm run test:e2e` | Playwright（`tests/e2e`、スマホ幅 375px）。導入のみで、画面テスト W1〜W6 は今後 | `supabase start`、`npx playwright install chromium` |
+| `npm run test:e2e` | Playwright（`tests/e2e`、スマホ幅 375px）。画面の導線 W1〜W6。本番ビルドをポート 3100 で起動して回す（約2分） | `supabase start`、`npx playwright install chromium` |
 
 ### ローカルでの立ち上げ
 
@@ -282,7 +282,20 @@ npm test && npm run test:db
 
 - DB には必ず `src/lib/db.ts` の `withUserDb(user.id, async (db) => ...)` 経由で触ります。中では Postgres のロールを `authenticated` に下げ、`auth.uid()` をログイン中のユーザーにしてから実行するので、**アプリの経路にも RLS が効きます**
 - route から `@/lib/prisma` を直接 import すると eslint エラーになります
+- 例外は `src/lib/admin-db.ts` だけ。全員分を横断する処理（定期支出の毎日の展開で対象者を探す・レシート読み取りの回数を数える）を置き、返すのは ID や件数だけにしています
 - それでもアプリ側で `userId` の絞り込みと参照先（口座・カテゴリ）の所有確認（`src/lib/ownership.ts`）を続けます（二重の守り）
+
+### 環境変数（追加分）
+
+| 変数 | 用途 | 既定 |
+|---|---|---|
+| `RECEIPT_PARSER` | レシート読み取りの提供元 `mock` / `openrouter` / `anthropic` | 開発は `mock`。本番で未設定ならエラー |
+| `RECEIPT_MODEL` | 例 `google/gemini-3.1-flash-lite`（openrouter）、`claude-haiku-4-5`（anthropic） | 左の例 |
+| `RECEIPT_PROVIDER_ORDER` | OpenRouter で固定する提供元（カンマ区切り） | `google-vertex` |
+| `OPENROUTER_API_KEY` / `ANTHROPIC_API_KEY` | 提供元の鍵。**公開版専用のキーに使用額の上限を付けて使う** | なし |
+| `RECEIPT_QUOTA_USER_DAY` / `_USER_MONTH` / `_GLOBAL_MONTH` | 読み取りの上限 | 5 / 30 / 3000 |
+| `CRON_SECRET` | 毎日の定期実行（`/api/cron/fixed-costs`、`vercel.json`）の鍵。未設定なら定期実行は 401 で動かない | なし |
+| `OWNER_USER_IDS` | 社長アカウント（予算台帳を使える・全体の読み取り上限から除く） | なし |
 
 ---
 
