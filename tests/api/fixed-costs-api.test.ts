@@ -6,7 +6,7 @@
  * 画面から呼ばれる API（今日 = 実際の JST の日付）は、今日からの相対日付で確かめる。
  */
 
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/supabase/server", () => import("../helpers/supabase-server-mock"));
 

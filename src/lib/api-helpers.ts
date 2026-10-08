@@ -84,7 +84,12 @@ export function serializeFixedCost(fc: any) {
     category_id: fc.categoryId ?? null,
     name: fc.name,
     amount: Number(fc.amount),
-    billing_day: fc.billingDay,
+    type: fc.type,
+    cycle: fc.cycle,
+    billing_day: fc.billingDay ?? null,
+    billing_month: fc.billingMonth ?? null,
+    start_date: fc.startDate instanceof Date ? fc.startDate.toISOString().slice(0, 10) : fc.startDate ?? null,
+    end_date: fc.endDate instanceof Date ? fc.endDate.toISOString().slice(0, 10) : fc.endDate ?? null,
     is_active: fc.isActive,
     created_at: fc.createdAt instanceof Date
       ? fc.createdAt.toISOString()

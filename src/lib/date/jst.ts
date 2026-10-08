@@ -48,3 +48,13 @@ export function monthRange(year: number, month: number): { gte: Date; lt: Date }
 export function daysInMonth(year: number, month: number): number {
   return new Date(Date.UTC(year, month, 0)).getUTCDate();
 }
+
+/** いま（または渡した瞬間）の JST の日付 "YYYY-MM-DD"。定期支出の「今日まで展開」の基準 */
+export function todayJst(now: Date = new Date()): string {
+  return toJstDateString(now);
+}
+
+/** date 列から読んだ Date（UTC 0時）→ "YYYY-MM-DD"。dateOnlyToDb の逆 */
+export function dbToDateOnly(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
