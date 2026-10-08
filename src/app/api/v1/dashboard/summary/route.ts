@@ -2,12 +2,16 @@
  * @file api/v1/dashboard/summary/route.ts
  * @description 月次サマリー集計エンドポイント。
  * 指定年月の合計収入・合計支出・残高・カテゴリ別内訳を返す。
+ * 集計は DB の RPC monthly_summary（自分の分だけを集計。S8）に任せ、
+ * ここではカテゴリ名を付けて構成比を計算するだけ。
  */
 
 import { NextRequest } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { withUserDb } from "@/lib/db";
 import { ok, error, requireAuth } from "@/lib/api-helpers";
 import type { DashboardSummary, CategorySummary } from "@/types/api";
+
+type SummaryRow = { type: string; category_id: string | null; total: unknown };
 
 /** GET /api/v1/dashboard/summary — 月次サマリー */
 export async function GET(request: NextRequest) {
@@ -22,60 +26,43 @@ export async function GET(request: NextRequest) {
     return error("VALIDATION_ERROR", "year と month は必須です", 422);
   }
 
-  const startDate = new Date(year, month - 1, 1);
-  const endDate = new Date(year, month, 0);
-
-  // 有効な収支を一括取得（カテゴリ情報付き）
-  const transactions = await prisma.transaction.findMany({
-    where: {
-      userId: user.id,
-      deletedAt: null,
-      transactionDate: { gte: startDate, lte: endDate },
-    },
-    include: {
-      category: { select: { id: true, name: true, color: true } },
-    },
+  const { rows, categories } = await withUserDb(user.id, async (db) => {
+    // RPC は呼んだ本人（auth.uid()）の取引だけを、日付で [当月1日, 翌月1日) の範囲で集計する
+    const rows = await db.$queryRaw<SummaryRow[]>`
+      SELECT type, category_id, total FROM public.monthly_summary(${year}::int, ${month}::int)`;
+    const ids = rows.map((r) => r.category_id).filter((id): id is string => id !== null);
+    const categories = ids.length
+      ? await db.category.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, color: true } })
+      : [];
+    return { rows, categories };
   });
 
-  // 合計収入・合計支出を集計
+  const catById = new Map(categories.map((c) => [c.id, c]));
   let totalIncome = 0;
   let totalExpense = 0;
+  const expenseByCategory: { category_id: string; name: string; color: string | null; amount: number }[] = [];
 
-  // カテゴリ別支出を集計するマップ
-  const categoryMap = new Map<
-    string,
-    { name: string; color: string | null; amount: number }
-  >();
-
-  for (const tx of transactions) {
-    const amount = Number(tx.amount);
-    if (tx.type === "income") {
+  for (const r of rows) {
+    const amount = Number(r.total);
+    if (r.type === "income") {
       totalIncome += amount;
-    } else {
-      totalExpense += amount;
-
-      // カテゴリ別集計（expense のみ）
-      const catId = tx.categoryId ?? "uncategorized";
-      const catName = tx.category?.name ?? "未分類";
-      const catColor = tx.category?.color ?? null;
-
-      const existing = categoryMap.get(catId);
-      if (existing) {
-        existing.amount += amount;
-      } else {
-        categoryMap.set(catId, { name: catName, color: catColor, amount });
-      }
+      continue;
     }
+    totalExpense += amount;
+    const cat = r.category_id ? catById.get(r.category_id) : undefined;
+    expenseByCategory.push({
+      category_id: r.category_id ?? "uncategorized",
+      name: cat?.name ?? "未分類",
+      color: cat?.color ?? null,
+      amount,
+    });
   }
 
   // カテゴリ別内訳を ratio（構成比）付きで返す
-  const byCategory: CategorySummary[] = Array.from(categoryMap.entries())
-    .map(([category_id, { name, color, amount }]) => ({
-      category_id,
-      name,
-      color,
-      amount,
-      ratio: totalExpense > 0 ? Math.round((amount / totalExpense) * 100) / 100 : 0,
+  const byCategory: CategorySummary[] = expenseByCategory
+    .map((c) => ({
+      ...c,
+      ratio: totalExpense > 0 ? Math.round((c.amount / totalExpense) * 100) / 100 : 0,
     }))
     .sort((a, b) => b.amount - a.amount); // 金額降順
 

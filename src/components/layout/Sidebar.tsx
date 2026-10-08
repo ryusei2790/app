@@ -10,21 +10,15 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-
-const NAV_ITEMS = [
-  { href: "/calendar",     label: "カレンダー",     icon: "📅" },
-  { href: "/dashboard",    label: "ダッシュボード",  icon: "📊" },
-  { href: "/transactions", label: "収支一覧",        icon: "📋" },
-  { href: "/import",       label: "CSVインポート",   icon: "📥" },
-  { href: "/fixed-costs",  label: "固定費",          icon: "🔁" },
-  { href: "/settings",     label: "設定",            icon: "⚙️" },
-] as const;
+import { navItemsFor } from "@/lib/nav";
 
 interface SidebarProps {
   userEmail: string;
+  /** 社長アカウントか（サーバー側の layout で判定して渡す。予算台帳のメニューを出すかどうか） */
+  isOwner?: boolean;
 }
 
-export function Sidebar({ userEmail }: SidebarProps) {
+export function Sidebar({ userEmail, isOwner = false }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
@@ -46,7 +40,7 @@ export function Sidebar({ userEmail }: SidebarProps) {
       {/* ナビゲーション */}
       <nav className="flex-1 p-3 overflow-y-auto">
         <ul className="space-y-0.5">
-          {NAV_ITEMS.map(({ href, label, icon }) => {
+          {navItemsFor({ isOwner }).map(({ href, label, icon }) => {
             const isActive = pathname === href || pathname.startsWith(href + "/");
             return (
               <li key={href}>

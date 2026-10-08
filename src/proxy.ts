@@ -53,7 +53,8 @@ export async function proxy(request: NextRequest) {
     request.nextUrl.pathname.startsWith("/transactions") ||
     request.nextUrl.pathname.startsWith("/import") ||
     request.nextUrl.pathname.startsWith("/fixed-costs") ||
-    request.nextUrl.pathname.startsWith("/settings");
+    request.nextUrl.pathname.startsWith("/settings") ||
+    request.nextUrl.pathname.startsWith("/budget");
 
   if (!user && isProtectedRoute) {
     const url = request.nextUrl.clone();

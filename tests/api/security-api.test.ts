@@ -44,7 +44,6 @@ let bAccount: string;
 let bTx: string;
 let bFixedCost: string;
 
-const asA = () => signInAs({ id: A.id, email: A.email });
 const asB = () => signInAs({ id: B.id, email: B.email });
 
 beforeAll(async () => {
@@ -184,14 +183,14 @@ describe("S4 未ログインは全 API で 401", () => {
     ["GET transactions/:id", () => txOne.GET(getRequest("/x"), params(id))],
     ["PUT transactions/:id", () => txOne.PUT(jsonRequest("PUT", "/x", {}), params(id))],
     ["DELETE transactions/:id", () => txOne.DELETE(jsonRequest("DELETE", "/x"), params(id))],
-    ["GET accounts", () => accList.GET(getRequest("/x"))],
+    ["GET accounts", () => accList.GET()],
     ["POST accounts", () => accList.POST(jsonRequest("POST", "/x", {}))],
     ["GET categories", () => catList.GET(getRequest("/x"))],
     ["POST categories", () => catList.POST(jsonRequest("POST", "/x", {}))],
-    ["GET fixed-costs", () => fcList.GET(getRequest("/x"))],
+    ["GET fixed-costs", () => fcList.GET()],
     ["POST fixed-costs", () => fcList.POST(jsonRequest("POST", "/x", {}))],
     ["POST fixed-costs/generate", () => fcGen.POST(jsonRequest("POST", "/x", { year: 2026, month: 10 }))],
-    ["GET import", () => importRoute.GET(getRequest("/x"))],
+    ["GET import", () => importRoute.GET()],
     ["GET dashboard/summary", () => summary.GET(getRequest("/x?year=2026&month=10"))],
   ];
   it.each(cases)("%s → 401", async (_name, call) => {

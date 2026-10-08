@@ -7,6 +7,7 @@
 
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { isOwner } from "@/lib/features";
 import type { ErrorCode } from "@/types/api";
 
 // ─── レスポンスヘルパー ───────────────────────────────────
@@ -181,4 +182,38 @@ export async function requireAuth(): Promise<
     };
   }
   return { user, response: null };
+}
+
+/**
+ * 社長専用の API Route で使うチェック（S6）。
+ * 未ログインは 401、ログインしていても社長（OWNER_USER_IDS）でなければ 403。
+ */
+export async function requireOwner(): Promise<
+  | { user: { id: string; email: string }; response: null }
+  | { user: null; response: ReturnType<typeof error> }
+> {
+  const auth = await requireAuth();
+  if (auth.response) return auth;
+  if (!isOwner(auth.user)) {
+    return { user: null, response: error("FORBIDDEN", "この機能は使えません", 403) };
+  }
+  return auth;
+}
+
+/**
+ * リクエストボディを JSON として読む。読めなければ 422 のレスポンスを返す。
+ * 戻り値はオブジェクトに限る（配列・null・数値などは不正扱い）。
+ */
+export async function readJsonBody(
+  request: Request
+): Promise<{ body: Record<string, unknown>; response: null } | { body: null; response: ReturnType<typeof error> }> {
+  try {
+    const body = await request.json();
+    if (body && typeof body === "object" && !Array.isArray(body)) {
+      return { body: body as Record<string, unknown>, response: null };
+    }
+  } catch {
+    // 下で 422 を返す
+  }
+  return { body: null, response: error("VALIDATION_ERROR", "リクエストボディが不正です", 422) };
 }

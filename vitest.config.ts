@@ -18,6 +18,8 @@ export default defineConfig({
   resolve: { alias },
   test: {
     env: { TZ: "Asia/Tokyo" },
+    // db プロジェクトは同じローカル DB を共有するので、ファイル単位でも直列に回す（テスト間の干渉を防ぐ）
+    fileParallelism: false,
     projects: [
       {
         resolve: { alias },
@@ -37,8 +39,6 @@ export default defineConfig({
           env: { TZ: "Asia/Tokyo" },
           globalSetup: ["tests/helpers/global-setup.ts"],
           setupFiles: ["tests/helpers/setup-env.ts"],
-          // 同じ DB を共有するので、ファイル単位でも直列に回す（テスト間の干渉を防ぐ）
-          fileParallelism: false,
           testTimeout: 30_000,
           hookTimeout: 60_000,
         },

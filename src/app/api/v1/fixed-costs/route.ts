@@ -1,41 +1,42 @@
 /**
  * @file api/v1/fixed-costs/route.ts
  * @description 固定費一覧取得（GET）・固定費登録（POST）エンドポイント。
+ * DB には withUserDb（RLS が効く）経由でだけ触る。口座・カテゴリは自分のものだけ使える（S3）。
  */
 
-import { NextRequest } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { ok, created, error, requireAuth, serializeFixedCost } from "@/lib/api-helpers";
-import type { CreateFixedCostRequest } from "@/types/api";
+import { withUserDb } from "@/lib/db";
+import { checkRefs, normalizeCategoryId } from "@/lib/ownership";
+import { ok, created, error, requireAuth, readJsonBody, serializeFixedCost } from "@/lib/api-helpers";
+
+const INCLUDE = {
+  category: { select: { id: true, name: true, color: true } },
+  account: { select: { id: true, name: true, type: true } },
+} as const;
 
 /** GET /api/v1/fixed-costs — 固定費一覧 */
-export async function GET(_request: NextRequest) {
+export async function GET() {
   const { user, response } = await requireAuth();
   if (response) return response;
 
-  const fixedCosts = await prisma.fixedCost.findMany({
-    where: { userId: user.id },
-    include: {
-      category: { select: { id: true, name: true, color: true } },
-      account: { select: { id: true, name: true, type: true } },
-    },
-    orderBy: { billingDay: "asc" },
-  });
+  const fixedCosts = await withUserDb(user.id, (db) =>
+    db.fixedCost.findMany({
+      where: { userId: user.id },
+      include: INCLUDE,
+      orderBy: { billingDay: "asc" },
+    })
+  );
 
   return ok(fixedCosts.map(serializeFixedCost), { total: fixedCosts.length });
 }
 
 /** POST /api/v1/fixed-costs — 固定費登録 */
-export async function POST(request: NextRequest) {
+export async function POST(request: Request) {
   const { user, response } = await requireAuth();
   if (response) return response;
 
-  let body: CreateFixedCostRequest;
-  try {
-    body = await request.json();
-  } catch {
-    return error("VALIDATION_ERROR", "リクエストボディが不正です", 422);
-  }
+  const parsed = await readJsonBody(request);
+  if (parsed.response) return parsed.response;
+  const body = parsed.body;
 
   const { account_id, name, amount, billing_day } = body;
   if (!account_id || !name || !amount || !billing_day) {
@@ -45,36 +46,31 @@ export async function POST(request: NextRequest) {
       422
     );
   }
-  if (billing_day < 1 || billing_day > 31) {
+  if (typeof billing_day !== "number" || billing_day < 1 || billing_day > 31) {
     return error("VALIDATION_ERROR", "billing_day は 1〜31 で指定してください", 422);
   }
-  if (amount <= 0) {
+  if (typeof amount !== "number" || amount <= 0) {
     return error("VALIDATION_ERROR", "amount は正の値を指定してください", 422);
   }
+  const categoryId = normalizeCategoryId(body.category_id) ?? null;
 
-  // 口座の所有権チェック
-  const account = await prisma.account.findFirst({
-    where: { id: account_id, userId: user.id },
+  return withUserDb(user.id, async (db) => {
+    // 口座・カテゴリの所有確認
+    const refs = await checkRefs(db, user.id, { accountId: account_id, categoryId });
+    if (!refs.ok) return error("NOT_FOUND", refs.message, 404);
+
+    const fixedCost = await db.fixedCost.create({
+      data: {
+        userId: user.id,
+        accountId: account_id as string,
+        categoryId: categoryId as string | null,
+        name: String(name),
+        amount,
+        billingDay: billing_day,
+        isActive: typeof body.is_active === "boolean" ? body.is_active : true,
+      },
+      include: INCLUDE,
+    });
+    return created(serializeFixedCost(fixedCost));
   });
-  if (!account) {
-    return error("NOT_FOUND", "指定された口座が見つかりません", 404);
-  }
-
-  const fixedCost = await prisma.fixedCost.create({
-    data: {
-      userId: user.id,
-      accountId: account_id,
-      categoryId: body.category_id ?? null,
-      name,
-      amount,
-      billingDay: billing_day,
-      isActive: body.is_active ?? true,
-    },
-    include: {
-      category: { select: { id: true, name: true, color: true } },
-      account: { select: { id: true, name: true, type: true } },
-    },
-  });
-
-  return created(serializeFixedCost(fixedCost));
 }

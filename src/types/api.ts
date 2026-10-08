@@ -49,8 +49,7 @@ export interface CreateTransactionRequest {
   source: "manual";
 }
 
-export interface UpdateTransactionRequest
-  extends Partial<Omit<CreateTransactionRequest, "source">> {}
+export type UpdateTransactionRequest = Partial<Omit<CreateTransactionRequest, "source">>;
 
 export interface TransactionQuery {
   year: number;
