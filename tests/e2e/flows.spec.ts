@@ -47,14 +47,16 @@ test("W4 レシートを撮る → 確認 → 保存（送る前に縮小され�
 
   // スマホのカメラ並みに大きい写真（4032×3024・数MB）を選ぶ
   const big = await sharp({
-    create: { width: 4032, height: 3024, channels: 3, noise: { type: "gaussian", mean: 128, sigma: 60 } },
+    create: { width: 4032, height: 3024, channels: 3, background: "#fff", noise: { type: "gaussian", mean: 128, sigma: 60 } },
   }).jpeg({ quality: 95 }).toBuffer();
   expect(big.length).toBeGreaterThan(2 * 1024 * 1024);
 
   const uploaded = page.waitForRequest((r) => r.url().endsWith("/api/v1/receipts/parse"));
   await page.getByLabel("レシートの写真").setInputFiles({ name: "receipt.jpg", mimeType: "image/jpeg", buffer: big });
   const req = await uploaded;
-  expect(req.postDataBuffer()!.length).toBeLessThan(2 * 1024 * 1024);
+  await req.response();
+  // 送った本文の大きさ（multipart 全体）。元の写真は 2MB 超なので、縮小されていなければここで超える
+  expect((await req.sizes()).requestBodySize).toBeLessThan(2 * 1024 * 1024);
 
   // 確認画面（モックの内容）→ 合計を直して保存
   await expect(page.getByLabel("店名")).toHaveValue("ファミリーマート 青山店");
@@ -65,7 +67,8 @@ test("W4 レシートを撮る → 確認 → 保存（送る前に縮小され�
   await expect(page.getByTestId("receipt-remaining")).toHaveCount(0);
 
   await page.getByRole("link", { name: "収支一覧へ" }).click();
-  await expect(page.getByText("レシート").first()).toBeVisible();
+  // 一覧の種別バッジ（スマホ幅で畳んでいるメニューの「レシート」とは別）
+  await expect(page.getByText("レシート", { exact: true }).filter({ visible: true }).first()).toBeVisible();
   await expect(page.getByText("¥600").first()).toBeVisible();
 });
 

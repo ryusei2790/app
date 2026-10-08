@@ -36,15 +36,16 @@ test("W2 Service Worker が登録され、オフラインでは「接続が必�
   expect(active).toBe(true);
   await page.reload(); // SW が画面を受け持つ状態にする
 
-  // 2. 開いている画面でオフラインになると、帯で知らせる
-  await context.setOffline(true);
-  await expect(page.getByRole("status").filter({ hasText: "接続が必要" })).toBeVisible();
-
-  // 3. オフラインで取引を追加しようとしても保存されない（あとで送る仕組みも無い）
+  // 2. 取引の入力中にネットが切れる → 帯で知らせる
   await page.locator('button[aria-current="date"]').click();
   await page.getByRole("button", { name: "+ 収支を追加" }).click();
   await page.getByLabel("金額（円）").fill("4321");
   await page.getByLabel("口座 *").selectOption({ label: "財布" });
+  await context.setOffline(true);
+  // 入力欄はモーダルの中なので、外側の帯は読み上げ上は隠れる（aria-hidden）。文字で探す
+  await expect(page.getByText("接続が必要です。オフラインの間は記録できません。")).toBeVisible();
+
+  // 3. そのまま保存を押しても保存されない（失敗と表示。あとで送る仕組みも無い）
   await page.getByRole("button", { name: "保存", exact: true }).click();
   await expect(page.getByText("保存に失敗しました")).toBeVisible();
 

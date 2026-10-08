@@ -127,10 +127,10 @@ export function CalendarView() {
   }
 
   return (
-    <div className="p-6 space-y-4">
-      {/* ヘッダー：月移動 + サマリー */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
+    <div className="p-3 sm:p-6 space-y-4">
+      {/* ヘッダー：月移動 + サマリー（スマホ幅では折り返す） */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-4">
           <button
             onClick={() => changeMonth(-1)}
             className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm hover:bg-gray-50"
@@ -159,7 +159,7 @@ export function CalendarView() {
 
         {/* 月次サマリー */}
         {!loading && (
-          <div className="flex gap-6 text-sm">
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
             <span className="text-green-600">
               収入 {formatAmount(monthSummary.income)}
             </span>

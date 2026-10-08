@@ -30,7 +30,7 @@ export function Sidebar({ userEmail, isOwner = false }: SidebarProps) {
   }
 
   return (
-    <aside className="w-60 shrink-0 border-r border-gray-200 bg-white flex flex-col">
+    <aside className="hidden w-60 shrink-0 border-r border-gray-200 bg-white md:flex md:flex-col">
       {/* ロゴ */}
       <div className="px-4 py-5 border-b border-gray-100">
         <h1 className="text-base font-bold text-gray-900">カレンダー家計簿</h1>

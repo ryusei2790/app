@@ -21,7 +21,7 @@ interface Props {
 }
 
 export function ReceiptReview({ draft, model, onSaved, onRetake }: Props) {
-  const { accounts } = useAccounts();
+  const { accounts, loading: accountsLoading } = useAccounts();
   const { categories } = useCategories("expense");
   const [merchant, setMerchant] = useState(draft.merchant ?? "");
   const [date, setDate] = useState(draft.date ?? "");
@@ -138,7 +138,8 @@ export function ReceiptReview({ draft, model, onSaved, onRetake }: Props) {
 
       <div className="flex gap-2">
         <button type="button" onClick={onRetake} className="flex-1 rounded-lg border border-gray-300 py-2 text-sm text-gray-600">撮り直す</button>
-        <button type="submit" disabled={saving} className="flex-1 rounded-lg bg-blue-600 py-2 text-sm font-medium text-white disabled:opacity-50">
+        {/* 口座の一覧を読み込み終わるまでは押せない（読み込み前に押すと「口座が無い」扱いになるため） */}
+        <button type="submit" disabled={saving || accountsLoading} className="flex-1 rounded-lg bg-blue-600 py-2 text-sm font-medium text-white disabled:opacity-50">
           {saving ? "保存中…" : "保存"}
         </button>
       </div>
