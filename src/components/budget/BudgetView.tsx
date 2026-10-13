@@ -206,7 +206,7 @@ export function BudgetView({ initialMonth }: { initialMonth?: string }) {
                 cursor={{ fill: "rgba(0,0,0,0.04)" }}
               />
               <Legend wrapperStyle={{ fontSize: 11, color: "#374151" }} iconSize={8} />
-              <ReferenceLine y={summary.total.limit} stroke="#6b7280" strokeDasharray="4 4" />
+              <ReferenceLine y={summary.total.limit} stroke="#6b7280" strokeDasharray="4 4" ifOverflow="extendDomain" />
               {summary.frames.map((f, i) => (
                 <Bar
                   key={f.id}

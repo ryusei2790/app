@@ -11,6 +11,7 @@
 
 "use client";
 
+import Link from "next/link";
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useAccounts } from "@/hooks/useAccounts";
 import { decodeCsv } from "@/lib/csv/decode";
@@ -73,7 +74,10 @@ async function detectFileFormat(file: File): Promise<Format> {
   return detectFormat(firstLine) === "kakebo" ? "kakebo" : "card";
 }
 
-export function CsvImportView() {
+/**
+ * @param isOwner 社長なら、取り込み後に「予算台帳で見る」を出す（予算台帳は社長専用: S6）
+ */
+export function CsvImportView({ isOwner = false }: { isOwner?: boolean }) {
   const { accounts } = useAccounts();
   const [format, setFormat] = useState<Format | null>(null);
   const [cardType, setCardType] = useState<CardType>("epos");
@@ -303,7 +307,7 @@ export function CsvImportView() {
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
             >
               {format === "kakebo" ? (
-                <option value={NEW_ACCOUNT}>新しく作る:「家計簿アプリ（移行）」</option>
+                <option value={NEW_ACCOUNT}>「家計簿アプリ（移行）」（無ければ作る）</option>
               ) : (
                 <option value="">口座を選択してください</option>
               )}
@@ -376,7 +380,7 @@ export function CsvImportView() {
                     <label htmlFor={`sch-${f.key}`} className="min-w-0 flex-1">
                       <span className="block truncate">
                         {f.category_name || "（カテゴリーなし）"}
-                        {f.note ? ` ${f.note}` : ""}
+                        {f.note && f.note !== f.category_name ? ` ${f.note}` : ""}
                       </span>
                       <span className="block text-xs text-gray-500">
                         毎月{f.billing_day}日・{f.type === "income" ? "収入" : "支出"} {yen(f.amount)}（{f.date} から）
@@ -429,6 +433,16 @@ export function CsvImportView() {
           <p className="mt-1">
             とばした {kakeboResult.skipped_count}件（取り込み済み・定期で作成済み）・定期 {kakeboResult.scheduled_count}件
           </p>
+          <div className="mt-3 flex flex-wrap gap-3">
+            <Link href="/transactions" className="rounded-lg border border-green-300 bg-white px-3 py-1.5 text-green-800">
+              収支一覧を見る
+            </Link>
+            {isOwner && (
+              <Link href="/budget" className="rounded-lg bg-green-700 px-3 py-1.5 text-white">
+                予算台帳で見る →
+              </Link>
+            )}
+          </div>
         </div>
       )}
 
