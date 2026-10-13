@@ -34,6 +34,8 @@ model Profile {
   csvImports       CsvImport[]
   receiptParseLogs ReceiptParseLog[]
   receipts         Receipt[]
+  budgetFrames     BudgetFrame[]
+  budgetRules      BudgetRule[]
 
   @@map("profiles")
 }
@@ -76,6 +78,7 @@ model Category {
   profile      Profile?      @relation(fields: [userId], references: [id], onDelete: Cascade)
   transactions Transaction[]
   fixedCosts   FixedCost[]
+  budgetRules  BudgetRule[]
 
   @@map("categories")
 }
@@ -95,6 +98,7 @@ model Transaction {
   note            String?
   source          String // "manual" | "csv" | "auto" | "api" | "receipt"
   csvImportId     String?   @map("csv_import_id") @db.Uuid // source='csv' の場合のみ
+  importKey       String?   @map("import_key") // CSV の行の目印（lib/csv/import-key.ts）。利用者ごとに一意
   deletedAt       DateTime? @map("deleted_at") @db.Timestamptz // 論理削除
   createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz
@@ -107,6 +111,7 @@ model Transaction {
   csvImport CsvImport? @relation(fields: [csvImportId], references: [id])
   receipt   Receipt?
 
+  @@unique([userId, importKey])
   @@map("transactions")
 }
 
@@ -202,4 +207,44 @@ model Receipt {
 
   @@index([userId, purchasedAt])
   @@map("receipts")
+}
+
+// -----------------------------------------------------------------------------
+// budget_frames — 予算の費目（食費・サブスク・…）と月の上限・目標（社長の予算台帳。lib/budget/*）
+// -----------------------------------------------------------------------------
+model BudgetFrame {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  name         String
+  monthlyLimit Int      @map("monthly_limit")
+  target       Int?
+  sortOrder    Int      @default(0) @map("sort_order")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  profile Profile      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rules   BudgetRule[]
+
+  @@unique([userId, name])
+  @@map("budget_frames")
+}
+
+// -----------------------------------------------------------------------------
+// budget_rules — カテゴリー／メモの語句 → 費目の対応表。frameId が null なら「枠の外」
+// 振り分けは取引に保存せず、集計のたびにこの表で決める（lib/budget/classify.ts）
+// -----------------------------------------------------------------------------
+model BudgetRule {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  categoryId  String?  @map("category_id") @db.Uuid
+  memoKeyword String?  @map("memo_keyword")
+  frameId     String?  @map("frame_id") @db.Uuid
+  priority    Int      @default(0)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  profile  Profile      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category Category?    @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  frame    BudgetFrame? @relation(fields: [frameId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("budget_rules")
 }

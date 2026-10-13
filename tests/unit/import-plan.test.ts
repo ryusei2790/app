@@ -45,7 +45,7 @@ describe("I6 期間が重なる2つの書き出し", () => {
     const p = plan(neu, { existingKeys: new Set(old.map((r) => r.importKey)) });
     // 9/10 の行と、9/03 パンの「2個目」だけが新規
     expect(p.fresh.map((r) => `${r.date} ${r.amount}`).sort()).toEqual(["2026-09-03 500", "2026-09-10 700"]);
-    expect(p.already).toHaveLength(3);
+    expect(p.already).toHaveLength(2); // パンの1個目と日用品
   });
 });
 

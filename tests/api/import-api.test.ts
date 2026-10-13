@@ -6,7 +6,7 @@
  * 「今日」は実際の JST の日付なので、予定の行は 2099 年にしている。
  */
 
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/supabase/server", () => import("../helpers/supabase-server-mock"));
 
@@ -51,7 +51,7 @@ interface CallOpts {
 
 async function callImport(content: string | Uint8Array, o: CallOpts = {}) {
   const form = new FormData();
-  form.append("file", new File([content], o.filename ?? "export.csv", { type: "text/csv" }));
+  form.append("file", new File([content as BlobPart], o.filename ?? "export.csv", { type: "text/csv" }));
   form.append("mode", o.mode ?? "commit");
   if (o.accountId) form.append("account_id", o.accountId);
   if (o.cardType) form.append("card_type", o.cardType);
