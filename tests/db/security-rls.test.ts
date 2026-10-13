@@ -21,6 +21,7 @@ import {
 /** アプリが使う表（public スキーマ）。新しい表を足したらここにも足す */
 const APP_TABLES = [
   "profiles", "accounts", "categories", "fixed_costs", "csv_imports", "transactions", "receipt_parse_logs", "receipts",
+  "budget_frames", "budget_rules",
 ];
 
 let A: TestUser;

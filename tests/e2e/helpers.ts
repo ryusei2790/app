@@ -25,14 +25,22 @@ export function localSupabase() {
   return { apiUrl: json.API_URL as string, anonKey: json.ANON_KEY as string, serviceRoleKey: json.SERVICE_ROLE_KEY as string, dbUrl: json.DB_URL as string };
 }
 
-export async function createUser(label = "e2e") {
+/** E2E の社長アカウントの id（playwright.config.ts の OWNER_USER_IDS と同じ）。本物の社長の id ではない */
+export const E2E_OWNER_ID = "00000000-0000-4000-8000-00000000e2e0";
+
+/**
+ * メール確認済みのユーザーを作る。id を渡すとその id で作る（前回の実行で残っていれば消してから作る）
+ */
+export async function createUser(label = "e2e", id?: string) {
   const env = localSupabase();
   const email = `${label}-${randomUUID()}@example.test`;
   const password = `pw-${randomUUID()}`;
+  const headers = { apikey: env.serviceRoleKey, authorization: `Bearer ${env.serviceRoleKey}`, "content-type": "application/json" };
+  if (id) await fetch(`${env.apiUrl}/auth/v1/admin/users/${id}`, { method: "DELETE", headers });
   const res = await fetch(`${env.apiUrl}/auth/v1/admin/users`, {
     method: "POST",
-    headers: { apikey: env.serviceRoleKey, authorization: `Bearer ${env.serviceRoleKey}`, "content-type": "application/json" },
-    body: JSON.stringify({ email, password, email_confirm: true }),
+    headers,
+    body: JSON.stringify({ email, password, email_confirm: true, ...(id ? { id } : {}) }),
   });
   if (!res.ok) throw new Error(`ユーザー作成に失敗: ${res.status}`);
   return { email, password };

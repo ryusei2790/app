@@ -1,11 +1,13 @@
 /**
  * @file api/v1/import/route.ts
  * @description CSVインポート（POST）・インポート履歴取得（GET）エンドポイント。
- * POST: multipart/form-data で CSV ファイルを受け取り、パース→一括インサートする。
- * 重複インポート判定: 同一ユーザー・口座・ファイル名・年月が一致する場合はエラー。
+ * POST は multipart/form-data で CSV ファイルを受け取る。形式は2系統:
+ *   - 家計簿アプリ形式（金額,日付,メモ,カテゴリー名。ヘッダーで自動判定）… mode=preview（保存しない）→ mode=commit（選んだ行だけ保存）
+ *       重複は「行の目印」で判定し、何回入れても増えない（lib/csv/import-key.ts、テスト一覧 I）
+ *   - カード会社（card_type=epos|saison）… 従来どおり一括で保存。重複は同一ファイル名＋今月で判定
  * DB には withUserDb（RLS が効く）経由でだけ触る。
- * 履歴（csv_imports）と取引（transactions）は1つのトランザクションで保存し、
- * 途中で失敗したら両方とも残さない（以前の pending/error の中途半端な行は作らない）。
+ * 履歴（csv_imports）と取引（transactions）・定期（fixed_costs）は1つのトランザクションで保存し、
+ * 途中で失敗したらどれも残さない。CSV の中身はログに出さない（S11）。
  */
 
 import { NextRequest } from "next/server";
@@ -13,6 +15,108 @@ import { withUserDb } from "@/lib/db";
 import { checkAccount } from "@/lib/ownership";
 import { ok, error, requireAuth, serializeCsvImport } from "@/lib/api-helpers";
 import { parseCsv, type CardType } from "@/lib/csv/parser";
+import { decodeCsv } from "@/lib/csv/decode";
+import { detectFormat, parseKakebo } from "@/lib/csv/kakebo";
+import { withImportKeys } from "@/lib/csv/import-key";
+import { commitPlan, loadPlan, resolveAccount } from "@/lib/import/kakebo-import";
+import { todayJst } from "@/lib/date/jst";
+
+/** 受け付ける CSV の大きさ（I12）。家計簿 約1,100行で 40KB ほどなので十分に大きい */
+export const MAX_CSV_BYTES = 5 * 1024 * 1024;
+export const MAX_CSV_ROWS = 20_000;
+
+/**
+ * 家計簿アプリ形式の取り込み。preview は計画を返すだけ、commit は計画を作り直して保存する
+ * （preview の結果は信用しない。間に別の取り込みが走っても一意索引で増えない）。
+ */
+async function importKakebo(
+  userId: string,
+  text: string,
+  formData: FormData,
+  filename: string
+) {
+  const mode = formData.get("mode") === "commit" ? "commit" : "preview";
+
+  // 1. 読む（DB に触る前に済ませ、トランザクションを短くする）
+  const { rows, invalid } = parseKakebo(text);
+  if (rows.length + invalid.length > MAX_CSV_ROWS) {
+    return error("VALIDATION_ERROR", `CSV は ${MAX_CSV_ROWS.toLocaleString()} 行までです`, 422);
+  }
+  if (rows.length === 0) {
+    return error("VALIDATION_ERROR", "取り込める行がありません", 422, { invalid });
+  }
+  const keyed = withImportKeys(rows);
+  const today = todayJst();
+
+  // 2. preview: 自分の既存データと照合した計画を返す（何も保存しない）
+  if (mode === "preview") {
+    const plan = await withUserDb(userId, (db) => loadPlan(db, userId, keyed, today));
+    return ok({
+      format: "kakebo",
+      counts: {
+        fresh: plan.fresh.length,
+        already: plan.already.length,
+        recurring_done: plan.recurringDone.length,
+        future: plan.future.length,
+        invalid: invalid.length,
+      },
+      future: plan.future.map((f) => ({
+        key: f.importKey,
+        date: f.date,
+        amount: f.amount,
+        type: f.type,
+        note: f.note,
+        category_name: f.categoryName,
+        billing_day: f.billingDay,
+        already_scheduled: f.alreadyScheduled,
+      })),
+      invalid,
+      sample: plan.fresh.slice(0, 5).map((r) => ({
+        date: r.date,
+        amount: r.amount,
+        type: r.type,
+        note: r.note,
+        category_name: r.categoryName,
+      })),
+    });
+  }
+
+  // 3. commit: 口座と「定期にする予定」を確かめてから保存
+  const accountId = formData.get("account_id");
+  if (typeof accountId !== "string" || accountId === "") {
+    return error("VALIDATION_ERROR", "account_id は必須です（新しく作るなら new）", 422);
+  }
+  let scheduleKeys: Set<string>;
+  try {
+    const raw = formData.get("schedule_keys");
+    const parsed: unknown = typeof raw === "string" && raw !== "" ? JSON.parse(raw) : [];
+    if (!Array.isArray(parsed) || !parsed.every((k) => typeof k === "string")) throw new Error();
+    scheduleKeys = new Set(parsed);
+  } catch {
+    return error("VALIDATION_ERROR", "schedule_keys は文字列の配列（JSON）で指定してください", 422);
+  }
+
+  try {
+    return await withUserDb(userId, async (db) => {
+      const account = await resolveAccount(db, userId, accountId);
+      if (!account) return error("NOT_FOUND", "指定された口座が見つかりません", 404);
+      const plan = await loadPlan(db, userId, keyed, today);
+      const result = await commitPlan(db, userId, account, filename, plan, scheduleKeys);
+      return ok({
+        format: "kakebo",
+        import_id: result.importId,
+        account_id: account,
+        imported_count: result.imported,
+        skipped_count: result.skipped,
+        scheduled_count: result.scheduled,
+        invalid,
+      });
+    });
+  } catch {
+    // トランザクションごと巻き戻っているので、何も残っていない。中身はログに出さない
+    return error("INTERNAL_ERROR", "データの保存中にエラーが発生しました", 500);
+  }
+}
 
 /** POST /api/v1/import — CSVインポート */
 export async function POST(request: NextRequest) {
@@ -27,15 +131,31 @@ export async function POST(request: NextRequest) {
     return error("VALIDATION_ERROR", "フォームデータの解析に失敗しました", 422);
   }
 
-  const file = formData.get("file") as File | null;
-  const accountId = formData.get("account_id") as string | null;
-  const cardType = formData.get("card_type") as CardType | null;
-
-  if (!file || !accountId || !cardType) {
-    return error("VALIDATION_ERROR", "file, account_id, card_type は必須です", 422);
+  const file = formData.get("file");
+  if (!(file instanceof File)) {
+    return error("VALIDATION_ERROR", "file は必須です", 422);
   }
-  if (!["epos", "saison"].includes(cardType)) {
-    return error("VALIDATION_ERROR", "card_type は epos または saison です", 422);
+  if (file.size > MAX_CSV_BYTES) {
+    return error("PAYLOAD_TOO_LARGE", "CSV は 5MB までです", 413);
+  }
+  const cardTypeRaw = formData.get("card_type");
+
+  // カード会社の指定が無ければ、ヘッダーで家計簿アプリ形式かを判定する
+  if (cardTypeRaw !== "epos" && cardTypeRaw !== "saison") {
+    if (cardTypeRaw !== null && cardTypeRaw !== "" && cardTypeRaw !== "auto" && cardTypeRaw !== "kakebo") {
+      return error("VALIDATION_ERROR", "card_type は epos・saison・kakebo のどれかです", 422);
+    }
+    const text = decodeCsv(await file.arrayBuffer());
+    if (detectFormat(text) !== "kakebo") {
+      return error("VALIDATION_ERROR", "CSV の形式が分かりません（カード会社を選んでください）", 422);
+    }
+    return importKakebo(user.id, text, formData, file.name);
+  }
+
+  const cardType: CardType = cardTypeRaw;
+  const accountId = formData.get("account_id");
+  if (typeof accountId !== "string" || accountId === "") {
+    return error("VALIDATION_ERROR", "file, account_id, card_type は必須です", 422);
   }
 
   // CSV テキストを読み込んでパース（DB に触る前に済ませ、トランザクションを短くする）
