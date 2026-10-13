@@ -87,7 +87,12 @@ export function DayTransactionList({
                     )}
                     {tx.source === "auto" && (
                       <span className="ml-1 rounded bg-purple-100 px-1 py-0.5 text-purple-600">
-                        固定費
+                        定期
+                      </span>
+                    )}
+                    {tx.source === "receipt" && (
+                      <span className="ml-1 rounded bg-amber-100 px-1 py-0.5 text-amber-700">
+                        レシート
                       </span>
                     )}
                   </div>

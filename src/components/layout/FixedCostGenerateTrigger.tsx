@@ -1,13 +1,11 @@
 /**
  * @file components/layout/FixedCostGenerateTrigger.tsx
- * @description 固定費の月次自動生成をトリガーする Client Component。
+ * @description 画面を開いたときに、本人の定期支出・定期収入を今日まで展開させる Client Component。
  *
- * 認証済みレイアウトにマウントされ、ページ遷移ではなくアプリ初回ロード時に
- * POST /api/v1/fixed-costs/generate を1回だけ呼び出す。
- *
- * sessionStorage にキー "fc_generated_YYYY_M" を保存することで、
- * 同一セッション内（ブラウザタブが開いている間）の重複呼び出しを防ぐ。
- * API 自体も冪等設計（同月分が既存なら何もしない）なので二重生成は起きない。
+ * 認証済みレイアウトにマウントされ、POST /api/v1/fixed-costs/generate を1日1回だけ呼ぶ。
+ * 毎日の定期実行（api/cron/fixed-costs）が本命で、これは「今日の分をすぐ見たい」ときの補助。
+ * sessionStorage のキー "fc_generated_YYYY-MM-DD" で同じタブ内の重複呼び出しを防ぐ。
+ * API 自体も冪等（展開済みの印より後しか作らない）なので、二重に呼んでも二重には作られない。
  */
 
 "use client";
@@ -16,24 +14,16 @@ import { useEffect } from "react";
 
 export function FixedCostGenerateTrigger() {
   useEffect(() => {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth() + 1;
-    // セッション中にすでに生成済みかチェック
-    const key = `fc_generated_${year}_${month}`;
+    const n = new Date();
+    const key = `fc_generated_${n.getFullYear()}-${n.getMonth() + 1}-${n.getDate()}`;
     if (sessionStorage.getItem(key)) return;
 
-    fetch("/api/v1/fixed-costs/generate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ year, month }),
-    })
-      .then(() => {
-        // 成功・スキップ問わず「今月は処理済み」としてマーク
-        sessionStorage.setItem(key, "1");
+    fetch("/api/v1/fixed-costs/generate", { method: "POST" })
+      .then((res) => {
+        if (res.ok) sessionStorage.setItem(key, "1");
       })
       .catch(() => {
-        // エラーは握りつぶす（次回タブ開き直し時に再試行される）
+        // エラーは握りつぶす（次に開いたとき・毎日の定期実行で作られる）
       });
   }, []);
 

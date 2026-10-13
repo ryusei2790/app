@@ -48,9 +48,10 @@ export function CalendarDay({
   return (
     <button
       type="button"
+      aria-current={isToday ? "date" : undefined}
       onClick={() => onClick(day)}
       className={`
-        relative min-h-[72px] w-full rounded-lg border p-2 text-left transition-colors
+        relative min-h-[56px] sm:min-h-[72px] w-full min-w-0 overflow-hidden rounded-lg border p-1 sm:p-2 text-left transition-colors
         hover:bg-blue-50 hover:border-blue-200
         ${isCurrentMonth ? "bg-white border-gray-200" : "bg-gray-50 border-gray-100"}
         ${isToday ? "border-blue-400 ring-1 ring-blue-400" : ""}

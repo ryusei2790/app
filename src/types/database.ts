@@ -12,7 +12,7 @@ export type AccountType = "cash" | "credit_card" | "bank";
 export type TransactionType = "income" | "expense";
 
 /** トランザクションの発生元 */
-export type TransactionSource = "manual" | "csv" | "auto" | "api";
+export type TransactionSource = "manual" | "csv" | "auto" | "api" | "receipt";
 
 /** CSVインポートのステータス */
 export type CsvImportStatus = "pending" | "success" | "error";
@@ -71,7 +71,12 @@ export interface FixedCost {
   category_id: string | null;
   name: string;
   amount: number;
-  billing_day: number;
+  type: "income" | "expense";
+  cycle: "weekly" | "biweekly" | "monthly" | "yearly";
+  billing_day: number | null;
+  billing_month: number | null;
+  start_date: string;
+  end_date: string | null;
   is_active: boolean;
   created_at: string;
 }

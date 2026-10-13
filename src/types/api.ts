@@ -35,6 +35,11 @@ export type ErrorCode =
   | "NOT_FOUND"
   | "VALIDATION_ERROR"
   | "CONFLICT"
+  | "PAYLOAD_TOO_LARGE"
+  | "UNSUPPORTED_MEDIA_TYPE"
+  | "RATE_LIMITED"
+  | "AI_UNAVAILABLE"
+  | "CANCELLED"
   | "INTERNAL_ERROR";
 
 // ─── Transactions ─────────────────────────────────────
@@ -49,8 +54,7 @@ export interface CreateTransactionRequest {
   source: "manual";
 }
 
-export interface UpdateTransactionRequest
-  extends Partial<Omit<CreateTransactionRequest, "source">> {}
+export type UpdateTransactionRequest = Partial<Omit<CreateTransactionRequest, "source">>;
 
 export interface TransactionQuery {
   year: number;
@@ -85,13 +89,15 @@ export interface CreateFixedCostRequest {
   category_id?: string;
   name: string;
   amount: number;
-  billing_day: number;
+  type?: "income" | "expense";
+  cycle?: "weekly" | "biweekly" | "monthly" | "yearly";
+  /** 毎月・毎年で必須。毎週・隔週は不要（開始日の曜日で決まる） */
+  billing_day?: number | null;
+  /** 毎年で必須 */
+  billing_month?: number | null;
+  start_date?: string;
+  end_date?: string | null;
   is_active?: boolean;
-}
-
-export interface GenerateFixedCostsRequest {
-  year: number;
-  month: number;
 }
 
 // ─── CSV Import ──────────────────────────────────────

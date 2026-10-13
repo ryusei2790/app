@@ -1,0 +1,13 @@
+{
+  "is_receipt": true,
+  "currency": "JPY",
+  "language": "ja",
+  "merchant": "ファミリーマート 青山店",
+  "purchased_at": "2026-10-07",
+  "total": 598,
+  "items": [
+    { "name": "おにぎり 鮭", "quantity": 1, "amount": 160 },
+    { "name": "からあげクン", "quantity": 1, "amount": 238 },
+    { "name": "お茶 500ml", "quantity": 1, "amount": 200 }
+  ]
+}

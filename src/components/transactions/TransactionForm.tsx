@@ -96,10 +96,11 @@ export function TransactionForm({
 
       {/* 日付 */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="tx-date" className="block text-sm font-medium text-gray-700 mb-1">
           日付
         </label>
         <input
+          id="tx-date"
           type="date"
           value={date}
           onChange={(e) => setDate(e.target.value)}
@@ -110,10 +111,11 @@ export function TransactionForm({
 
       {/* 金額 */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="tx-amount" className="block text-sm font-medium text-gray-700 mb-1">
           金額（円）
         </label>
         <input
+          id="tx-amount"
           type="number"
           min="1"
           step="1"
@@ -127,10 +129,11 @@ export function TransactionForm({
 
       {/* カテゴリ */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="tx-category" className="block text-sm font-medium text-gray-700 mb-1">
           カテゴリ
         </label>
         <select
+          id="tx-category"
           value={categoryId}
           onChange={(e) => setCategoryId(e.target.value)}
           className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
@@ -146,10 +149,11 @@ export function TransactionForm({
 
       {/* 口座 */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="tx-account" className="block text-sm font-medium text-gray-700 mb-1">
           口座 *
         </label>
         <select
+          id="tx-account"
           value={accountId}
           onChange={(e) => setAccountId(e.target.value)}
           required
@@ -166,10 +170,11 @@ export function TransactionForm({
 
       {/* メモ */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="tx-note" className="block text-sm font-medium text-gray-700 mb-1">
           メモ
         </label>
         <input
+          id="tx-note"
           type="text"
           value={note}
           onChange={(e) => setNote(e.target.value)}
