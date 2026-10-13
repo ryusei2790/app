@@ -10,7 +10,7 @@
  */
 
 import { defineConfig, devices } from "@playwright/test";
-import { localSupabase } from "./tests/e2e/helpers";
+import { E2E_OWNER_ID, localSupabase } from "./tests/e2e/helpers";
 
 const PORT = 3100;
 const sb = localSupabase();
@@ -43,7 +43,7 @@ export default defineConfig({
       NEXT_PUBLIC_SUPABASE_ANON_KEY: sb.anonKey,
       DATABASE_URL: sb.dbUrl,
       RECEIPT_PARSER: "mock",
-      OWNER_USER_IDS: "",
+      OWNER_USER_IDS: E2E_OWNER_ID, // W8 の社長だけ。他のテストのユーザーは一般
     },
   },
 });
