@@ -14,6 +14,9 @@ export type TransactionType = "income" | "expense";
 /** トランザクションの発生元 */
 export type TransactionSource = "manual" | "csv" | "auto" | "api" | "receipt";
 
+/** 取引の種類（lib/aggregate/definitions.ts と同じ。normal=購入/収入, refund=返金, transfer=振替, loan=借入・返済） */
+export type TransactionKind = "normal" | "refund" | "transfer" | "loan";
+
 /** CSVインポートのステータス */
 export type CsvImportStatus = "pending" | "success" | "error";
 
@@ -55,6 +58,7 @@ export interface Transaction {
   fixed_cost_id: string | null;
   amount: number;
   type: TransactionType;
+  kind: TransactionKind;
   transaction_date: string; // "YYYY-MM-DD"
   note: string | null;
   source: TransactionSource;

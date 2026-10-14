@@ -2,14 +2,14 @@
  * @file api/v1/transactions/route.ts
  * @description 収支一覧取得（GET）・手動入力（POST）エンドポイント。
  * - GET: 年月・口座・カテゴリ・タイプ・ソースでフィルタリングして返す
- * - POST: source='manual' で収支を1件登録する
+ * - POST: source='manual' で収支を1件登録する。種類（kind: normal/refund/transfer/loan）も受ける（#425）
  * DB には withUserDb（RLS が効く）経由でだけ触る。user_id は body からは取らず、必ずログイン中のユーザー。
  */
 
 import { NextRequest } from "next/server";
 import { withUserDb } from "@/lib/db";
 import { checkRefs, normalizeCategoryId } from "@/lib/ownership";
-import { parseDateOnly, parseYenAmount } from "@/lib/validation/transaction";
+import { checkKindType, parseDateOnly, parseKind, parseYenAmount } from "@/lib/validation/transaction";
 import { dateOnlyToDb, isValidYearMonth, monthRange } from "@/lib/date/jst";
 import { ok, created, error, requireAuth, readJsonBody, serializeTransaction } from "@/lib/api-helpers";
 
@@ -84,6 +84,11 @@ export async function POST(request: NextRequest) {
   // 日付は実在する YYYY-MM-DD（未来日は可。T2）
   const date = parseDateOnly(body.transaction_date);
   if (!date.ok) return error("VALIDATION_ERROR", date.message, 422);
+  // 種類（既定 normal）。返金は収入の向きだけ（#425 D1）
+  const kind = parseKind(body.kind);
+  if (!kind.ok) return error("VALIDATION_ERROR", kind.message, 422);
+  const kindType = checkKindType(kind.value, type as "income" | "expense");
+  if (!kindType.ok) return error("VALIDATION_ERROR", kindType.message, 422);
   const categoryId = normalizeCategoryId(body.category_id) ?? null;
 
   return withUserDb(user.id, async (db) => {
@@ -98,6 +103,7 @@ export async function POST(request: NextRequest) {
         categoryId: categoryId as string | null,
         amount: amount.value,
         type: type as string,
+        kind: kind.value,
         transactionDate: dateOnlyToDb(date.value),
         note: (body.note as string | undefined) ?? null,
         source: "manual",

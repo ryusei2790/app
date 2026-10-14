@@ -2,9 +2,12 @@
  * @file lib/validation/transaction.ts
  * @description 取引・固定費の入力ルール（テスト一覧 T1・T2）。純粋関数なので単体テストできる。
  * - 金額: 1円以上の整数円だけ。上限は DB の NUMERIC(12,2) に入る 9,999,999,999 円
- * - 日付: 実在する YYYY-MM-DD だけ（2/30 や 13月は拒否）。未来日は許可（予定の支払いを先に入れられる）
+ * - 日付: 実在する YYYY-MM-DD だけ（2/30 や 13月は拒否）。未来日は許可（予定の支払いを先に入れられる。合計には入れず「予定」になる: #425 D4）
+ * - 種類（kind）: normal／refund／transfer／loan。未指定は normal。返金は収入の向きだけ（#425 D1）
  * 失敗時は画面にそのまま出せる日本語のメッセージを返す。
  */
+
+import { TRANSACTION_KINDS, type TransactionKind } from "@/lib/aggregate/definitions";
 
 export type Parsed<T> = { ok: true; value: T } | { ok: false; message: string };
 
@@ -43,4 +46,21 @@ export function parseDateOnly(v: unknown): Parsed<string> {
   const daysInMonth = new Date(Date.UTC(y, mo, 0)).getUTCDate();
   if (d > daysInMonth) return fail;
   return { ok: true, value: v };
+}
+
+/** 種類。未指定（undefined・null・""）は normal。4種以外は受け付けない（D1） */
+export function parseKind(v: unknown): Parsed<TransactionKind> {
+  if (v === undefined || v === null || v === "") return { ok: true, value: "normal" };
+  if (typeof v === "string" && (TRANSACTION_KINDS as readonly string[]).includes(v)) {
+    return { ok: true, value: v as TransactionKind };
+  }
+  return { ok: false, message: "kind は normal・refund・transfer・loan のどれかで指定してください" };
+}
+
+/** 向きと種類の組み合わせ。返金は「戻ってきたお金」なので収入の向きだけ（DB の CHECK と同じ） */
+export function checkKindType(kind: TransactionKind, type: "income" | "expense"): Parsed<true> {
+  if (kind === "refund" && type !== "income") {
+    return { ok: false, message: "返金は「収入」の向き（戻ってきたお金）で入れてください。支出から引かれます" };
+  }
+  return { ok: true, value: true };
 }

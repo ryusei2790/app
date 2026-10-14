@@ -6,14 +6,17 @@
  *   - その月の費目別 実績・残額・合計、枠の外・未割り当て・収入、食費の1日目安（lib/budget/summary.ts）
  *   - その月までの12か月の推移
  * 未ログイン 401 / 一般ユーザー 403 / 社長（OWNER_USER_IDS）200。DB は withUserDb（RLS）経由。
+ * 数字の定義はダッシュボードと同じ lib/aggregate（今日まで・返金は同じ費目から引く・振替／借入は入れない: mywork#425 第1弾）。
  */
 
 import type { NextRequest } from "next/server";
 import { error, ok, requireOwner } from "@/lib/api-helpers";
 import { withUserDb } from "@/lib/db";
-import { dateOnlyToDb, dbToDateOnly, todayJst } from "@/lib/date/jst";
+import { todayJst } from "@/lib/date/jst";
 import { ensureBudgetDefaults, loadFrames, loadRules, serializeFrame, serializeRule } from "@/lib/budget/store";
 import { monthlyTrend, monthSummary, shiftMonth } from "@/lib/budget/summary";
+import { loadTxsBetween } from "@/lib/aggregate/load";
+import { toBudgetTxs } from "@/lib/aggregate/monthly";
 
 const MONTH_RE = /^(\d{4})-(0[1-9]|1[0-2])$/;
 
@@ -32,25 +35,12 @@ export async function GET(request?: NextRequest) {
 
   const data = await withUserDb(user.id, async (db) => {
     await ensureBudgetDefaults(db, user.id);
-    const [frames, rules, txs] = await Promise.all([
-      loadFrames(db, user.id),
-      loadRules(db, user.id),
-      db.transaction.findMany({
-        where: { userId: user.id, deletedAt: null, transactionDate: { gte: dateOnlyToDb(from), lt: dateOnlyToDb(to) } },
-        select: { transactionDate: true, amount: true, type: true, categoryId: true, note: true, category: { select: { name: true } } },
-      }),
-    ]);
+    const [frames, rules, txs] = await Promise.all([loadFrames(db, user.id), loadRules(db, user.id), loadTxsBetween(db, user.id, from, to)]);
     return { frames, rules, txs };
   });
 
-  const txs = data.txs.map((t) => ({
-    date: dbToDateOnly(t.transactionDate),
-    amount: Number(t.amount),
-    type: t.type as "income" | "expense",
-    categoryId: t.categoryId,
-    categoryName: t.category?.name ?? null,
-    note: t.note,
-  }));
+  // 定義（lib/aggregate）に合わせる: 今日より後の行は「予定」なので入れない。返金は負の支出、振替・借入は費目に入れない（#425 D7・D9）
+  const txs = toBudgetTxs(data.txs.filter((t) => t.date <= today));
 
   return ok({
     enabled: true,

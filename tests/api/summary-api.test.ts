@@ -114,7 +114,8 @@ describe("D1 kind の列", () => {
     asA();
     const plain = await txList.POST(jsonRequest("POST", "/x", { account_id: aAccount, amount: 500, type: "expense", transaction_date: "2026-01-10" }));
     expect(plain.status).toBe(201);
-    expect((await readJson(plain)).data.kind).toBe("normal");
+    const plainData = (await readJson(plain)).data;
+    expect(plainData.kind).toBe("normal");
 
     const transfer = await txList.POST(
       jsonRequest("POST", "/x", { account_id: aAccount, amount: 3000, type: "expense", kind: "transfer", transaction_date: "2026-01-10" })
@@ -135,8 +136,7 @@ describe("D1 kind の列", () => {
     expect(toRefund.status).toBe(200);
     expect((await readJson(toRefund)).data.kind).toBe("refund");
     expect((await txOne.PUT(jsonRequest("PUT", "/x", { type: "expense" }), params(income.id))).status).toBe(422);
-    const plainId = (await readJson(plain)).data.id as string;
-    expect((await txOne.PUT(jsonRequest("PUT", "/x", { kind: "refund" }), params(plainId))).status).toBe(422);
+    expect((await txOne.PUT(jsonRequest("PUT", "/x", { kind: "refund" }), params(plainData.id))).status).toBe(422);
     // 向きと種類を同時に変えるのは可
     expect((await txOne.PUT(jsonRequest("PUT", "/x", { kind: "normal", type: "expense" }), params(income.id))).status).toBe(200);
 

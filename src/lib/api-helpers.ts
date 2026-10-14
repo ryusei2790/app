@@ -53,6 +53,7 @@ export function serializeTransaction(tx: any) {
     fixed_cost_id: tx.fixedCostId ?? null,
     amount: Number(tx.amount),
     type: tx.type,
+    kind: tx.kind ?? "normal",
     transaction_date: tx.transactionDate instanceof Date
       ? tx.transactionDate.toISOString().split("T")[0]
       : String(tx.transactionDate).split("T")[0],

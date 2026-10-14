@@ -321,7 +321,7 @@ describe("D10 文言は definitions.ts に1か所", () => {
     const files = readdirSync(srcDir, { recursive: true, encoding: "utf8" })
       .filter((f) => /\.(ts|tsx)$/.test(f) && !f.includes("generated") && !f.endsWith("aggregate/definitions.ts"))
       .map((f) => path.join(srcDir, f));
-    const texts = Object.values(FOOTNOTES).filter((v): v is string => typeof v === "string");
+    const texts = (Object.values(FOOTNOTES) as unknown[]).filter((v): v is string => typeof v === "string");
     expect(texts.length).toBeGreaterThan(0);
     for (const file of files) {
       const body = readFileSync(file, "utf8");

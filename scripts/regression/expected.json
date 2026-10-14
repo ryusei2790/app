@@ -1,0 +1,9 @@
+{
+  "definitions_version": "2026-10-14.1",
+  "today": "2026-10-14",
+  "months": 22,
+  "rows": 1108,
+  "sha256": "3e606a1e27b30a6aa0db60a474856b840035a92009f01d1c5e518c460be0f464",
+  "generated_at": "2026-10-14T05:19:25.802Z",
+  "note": "本物の帳簿（CSV、git の外）で全月の集計を正規化した SHA-256。金額は入れない。作り方は docs/procedures.md「実データの回帰テスト」"
+}

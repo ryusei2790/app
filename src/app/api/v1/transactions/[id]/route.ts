@@ -1,7 +1,7 @@
 /**
  * @file api/v1/transactions/[id]/route.ts
  * @description 収支の詳細取得（GET）・更新（PUT）・削除（DELETE）エンドポイント。
- * - PUT: 口座・カテゴリを付け替えるときは、付け替え先が自分のものかを確かめる（S3）
+ * - PUT: 口座・カテゴリを付け替えるときは、付け替え先が自分のものかを確かめる（S3）。種類（kind）の変更は向きとの組み合わせを確かめる（#425 D1）
  * - DELETE: source='auto' の場合は論理削除、それ以外は物理削除
  * DB には withUserDb（RLS が効く）経由でだけ触る。
  */
@@ -9,7 +9,7 @@
 import { NextRequest } from "next/server";
 import { isUuid, withUserDb } from "@/lib/db";
 import { checkRefs, normalizeCategoryId } from "@/lib/ownership";
-import { parseDateOnly, parseYenAmount } from "@/lib/validation/transaction";
+import { checkKindType, parseDateOnly, parseKind, parseYenAmount } from "@/lib/validation/transaction";
 import { dateOnlyToDb } from "@/lib/date/jst";
 import { ok, error, requireAuth, readJsonBody, serializeTransaction } from "@/lib/api-helpers";
 
@@ -69,6 +69,12 @@ export async function PUT(request: NextRequest, { params }: Params) {
     if (!date.ok) return error("VALIDATION_ERROR", date.message, 422);
     updateData.transactionDate = dateOnlyToDb(date.value);
   }
+  if (body.kind !== undefined) {
+    // 種類（#425 D1）。向きとの組み合わせは既存の値と合わせて下で確かめる
+    const kind = parseKind(body.kind);
+    if (!kind.ok) return error("VALIDATION_ERROR", kind.message, 422);
+    updateData.kind = kind.value;
+  }
   const categoryId = body.category_id !== undefined ? normalizeCategoryId(body.category_id) : undefined;
   if (categoryId !== undefined) updateData.categoryId = categoryId;
   if (body.account_id !== undefined) updateData.accountId = body.account_id;
@@ -77,9 +83,15 @@ export async function PUT(request: NextRequest, { params }: Params) {
   return withUserDb(user.id, async (db) => {
     const transaction = await db.transaction.findFirst({
       where: { id, userId: user.id, deletedAt: null },
-      select: { id: true },
+      select: { id: true, type: true, kind: true },
     });
     if (!transaction) return NOT_FOUND();
+
+    // 変更後の 向き × 種類 が許される組み合わせか（返金は収入の向きだけ。DB の CHECK でも止まるが 500 にしない）
+    const nextKind = (updateData.kind as string | undefined) ?? transaction.kind;
+    const nextType = (updateData.type as string | undefined) ?? transaction.type;
+    const kindType = checkKindType(nextKind as "normal" | "refund" | "transfer" | "loan", nextType as "income" | "expense");
+    if (!kindType.ok) return error("VALIDATION_ERROR", kindType.message, 422);
 
     // 付け替え先の口座・カテゴリが自分のものか（S3）
     const refs = await checkRefs(db, user.id, { accountId: body.account_id, categoryId });

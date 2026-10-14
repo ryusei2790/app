@@ -69,7 +69,9 @@ describe.skipIf(!csvPath)("V2 実データの回帰（KAKEBO_REGRESSION_CSV が�
     }));
     const months = [...new Set(txs.map((t) => t.date.slice(0, 7)))].sort();
 
-    const previous: Expected | null = existsSync(expectedPath) ? JSON.parse(readFileSync(expectedPath, "utf8")) : null;
+    // expected.json はあるがまだ一度も作っていない（sha256: null）なら、初回として書く
+    const stored: Partial<Expected> | null = existsSync(expectedPath) ? JSON.parse(readFileSync(expectedPath, "utf8")) : null;
+    const previous: Expected | null = stored && stored.sha256 && stored.today ? (stored as Expected) : null;
     const today = write || !previous ? todayJst() : previous.today;
 
     const summaries = months.map((m) => summarize({ txs, month: m, today, budget: { frames, rules } }));
@@ -86,7 +88,7 @@ describe.skipIf(!csvPath)("V2 実データの回帰（KAKEBO_REGRESSION_CSV が�
         generated_at: new Date().toISOString(),
       };
       mkdirSync(path.dirname(expectedPath), { recursive: true });
-      writeFileSync(expectedPath, JSON.stringify(next, null, 2) + "\n");
+      writeFileSync(expectedPath, JSON.stringify({ ...stored, ...next }, null, 2) + "\n");
       mkdirSync(localDir, { recursive: true });
       writeFileSync(localPath, canon + "\n");
       // 書いた直後は一致する（内容は端末にも出さない）
