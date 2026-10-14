@@ -16,7 +16,7 @@ const COMMON_ITEMS: NavItem[] = [
   { href: "/receipts/new", label: "レシート", icon: "📷" },
   { href: "/transactions", label: "収支一覧", icon: "📋" },
   { href: "/import", label: "CSVインポート", icon: "📥" },
-  { href: "/fixed-costs", label: "定期支出", icon: "🔁" },
+  { href: "/fixed-costs", label: "定期の収入・支出", icon: "🔁" },
   { href: "/settings", label: "設定", icon: "⚙️" },
 ];
 

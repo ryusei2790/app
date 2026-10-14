@@ -1,7 +1,7 @@
 /**
  * @file components/dashboard/DashboardView.tsx
  * @description ダッシュボードのメインコンポーネント（Client Component）。
- * 月次サマリー + カテゴリ別円グラフを表示する。
+ * 月次サマリー・固定と変動の内訳・今月の予定（未確定）・カテゴリ別円グラフを表示する。
  */
 
 "use client";
@@ -9,6 +9,8 @@
 import { useState } from "react";
 import { MonthSummary } from "./MonthSummary";
 import { CategoryPieChart } from "./CategoryPieChart";
+import { FixedBreakdown } from "./FixedBreakdown";
+import { UpcomingList } from "./UpcomingList";
 import { useDashboardSummary } from "@/hooks/useDashboardSummary";
 
 export function DashboardView() {
@@ -25,21 +27,21 @@ export function DashboardView() {
   }
 
   return (
-    <div className="p-6 space-y-6">
-      {/* ヘッダー */}
-      <div className="flex items-center gap-4">
+    <div className="p-4 sm:p-6 space-y-6">
+      {/* ヘッダー（スマホ幅でも1行に収まるよう、狭い画面では「10月」だけにする） */}
+      <div className="flex flex-wrap items-center gap-2 sm:gap-4">
         <button
           onClick={() => changeMonth(-1)}
-          className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm hover:bg-gray-50"
+          className="shrink-0 whitespace-nowrap rounded-lg border border-gray-200 px-3 py-1.5 text-sm hover:bg-gray-50"
         >
           ← 前月
         </button>
-        <h2 className="text-xl font-bold text-gray-900">
-          {year}年{month}月のダッシュボード
+        <h2 className="text-lg font-bold text-gray-900 sm:text-xl">
+          {year}年{month}月<span className="hidden sm:inline">のダッシュボード</span>
         </h2>
         <button
           onClick={() => changeMonth(1)}
-          className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm hover:bg-gray-50"
+          className="shrink-0 whitespace-nowrap rounded-lg border border-gray-200 px-3 py-1.5 text-sm hover:bg-gray-50"
         >
           翌月 →
         </button>
@@ -48,7 +50,7 @@ export function DashboardView() {
             setYear(today.getFullYear());
             setMonth(today.getMonth() + 1);
           }}
-          className="rounded-lg bg-blue-50 px-3 py-1.5 text-sm text-blue-600 hover:bg-blue-100"
+          className="shrink-0 whitespace-nowrap rounded-lg bg-blue-50 px-3 py-1.5 text-sm text-blue-600 hover:bg-blue-100"
         >
           今月
         </button>
@@ -80,6 +82,12 @@ export function DashboardView() {
             totalExpense={summary.total_expense}
             balance={summary.balance}
           />
+
+          {/* 固定の収入／固定の支出／変動の支出（mywork#229） */}
+          <FixedBreakdown fixed={summary.fixed} />
+
+          {/* 今月の予定（未確定）。合計には入れず別枠で見せる */}
+          <UpcomingList items={summary.upcoming} balance={summary.balance} />
 
           {/* カテゴリ別支出 */}
           <div className="rounded-xl border border-gray-200 bg-white p-6">

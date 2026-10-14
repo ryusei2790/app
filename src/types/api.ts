@@ -98,6 +98,10 @@ export interface CreateFixedCostRequest {
   start_date?: string;
   end_date?: string | null;
   is_active?: boolean;
+  /** 固定の判定: メモに含まれる語句（空なら見ない） */
+  match_note?: string | null;
+  /** 固定の判定: true なら金額を見ない */
+  match_any_amount?: boolean;
 }
 
 // ─── CSV Import ──────────────────────────────────────
@@ -122,6 +126,23 @@ export interface DashboardSummary {
   total_expense: number;
   balance: number;
   by_category: CategorySummary[];
+  /** 固定／変動の内訳（mywork#229 F8）。固定＋変動＝合計 */
+  fixed: {
+    fixed_income: number;
+    variable_income: number;
+    fixed_expense: number;
+    variable_expense: number;
+  };
+  /** 今月の予定（未確定）。定期のまだ取引になっていない回。合計には入らない */
+  upcoming: UpcomingItem[];
+}
+
+export interface UpcomingItem {
+  fixed_cost_id: string;
+  date: string;
+  name: string;
+  type: "income" | "expense";
+  amount: number;
 }
 
 export interface CategorySummary {

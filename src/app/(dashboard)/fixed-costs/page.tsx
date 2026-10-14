@@ -1,6 +1,6 @@
 /**
  * @file app/(dashboard)/fixed-costs/page.tsx
- * @description 固定費管理画面（Server Component）。
+ * @description 定期の収入・支出（給料・仕送り・家賃・サブスクなど）の管理画面（Server Component）。
  */
 
 import { FixedCostView } from "@/components/fixed-costs/FixedCostView";

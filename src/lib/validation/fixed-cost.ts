@@ -5,6 +5,7 @@
  * - parseFixedCostInput: API の body（snake_case）を検査して camelCase の値にする
  *     create … 既定値（支出・毎月・開始日=今日）を埋め、周期との組み合わせまで確かめる
  *     update … 送られた項目だけを返す。組み合わせの検査は既存の値と合わせてから checkRule で行う
+ * - match_note / match_any_amount: 固定の判定の条件（メモの語句・金額を見ないか）。空の語句は null（見ない）
  * - checkRule: 周期と billing_day / billing_month / 開始日・終了日の組み合わせを確かめる
  * 失敗時は画面にそのまま出せる日本語のメッセージを返す（取引の入力ルールと同じ形）。
  * 口座・カテゴリが自分のものかは DB が要るので、ここではなく route（lib/ownership.ts）で確かめる。
@@ -23,6 +24,10 @@ export interface FixedCostFields {
   startDate: string;
   endDate: string | null;
   isActive: boolean;
+  /** 固定の判定: メモに含まれる語句（null = 見ない）。lib/fixed/classify.ts */
+  matchNote: string | null;
+  /** 固定の判定: true なら金額を見ない */
+  matchAnyAmount: boolean;
 }
 
 const fail = (message: string) => ({ ok: false as const, message });
@@ -110,6 +115,20 @@ export function parseFixedCostInput(
     if (typeof body.is_active !== "boolean") return fail("is_active は true / false で指定してください");
     out.isActive = body.is_active;
   }
+  if (has("match_note")) {
+    if (body.match_note === null || body.match_note === "") {
+      out.matchNote = null;
+    } else {
+      if (typeof body.match_note !== "string") return fail("メモの語句は文字で指定してください");
+      const t = body.match_note.trim();
+      if (t.length > 50) return fail("メモの語句は50文字までにしてください");
+      out.matchNote = t === "" ? null : t;
+    }
+  }
+  if (has("match_any_amount")) {
+    if (typeof body.match_any_amount !== "boolean") return fail("match_any_amount は true / false で指定してください");
+    out.matchAnyAmount = body.match_any_amount;
+  }
 
   if (mode === "update") return { ok: true, value: out };
 
@@ -124,5 +143,7 @@ export function parseFixedCostInput(
     startDate: out.startDate ?? today,
     endDate: out.endDate ?? null,
     isActive: out.isActive ?? true,
+    matchNote: out.matchNote ?? null,
+    matchAnyAmount: out.matchAnyAmount ?? false,
   });
 }

@@ -8,6 +8,8 @@
  *   - 数か月走らなくても、次の1回で抜けた回がすべて作られる（R6 補完）
  *   - 定期を編集しても、作成済みの取引（＝印より前）は書き換えない（R8）
  * 同時に2回走った場合の重複は、DB の一意索引（fixed_cost_id, transaction_date）＋ skipDuplicates で止める。
+ * さらに、固定の条件（メモの語句・カテゴリー）を持つ定期は、その回の期間（毎月なら同じ月）に条件に当てはまる
+ * 手入力・CSV の取引が既にあれば作らない（F7。開始日を過去にして登録しても、CSV で入れた月と二重にならない）。
  *
  * 呼ぶ側:
  *   - 画面を開いたとき: api/v1/fixed-costs/generate（ログイン中の本人の分）
@@ -17,6 +19,7 @@
 
 import type { UserDb } from "@/lib/db";
 import { dateOnlyToDb, dbToDateOnly } from "@/lib/date/jst";
+import { hasMatchingInPeriod, type FixedCondition, type FixedTx } from "@/lib/fixed/classify";
 import { addDays, nextOccurrence, occurrencesBetween, type Cycle, type ScheduleRule } from "./schedule";
 
 /**
@@ -36,11 +39,15 @@ export async function expandFixedCostsForUser(db: UserDb, userId: string, today:
     if (done !== null && done >= today) continue; // 今日まで展開済み
 
     // 2. 印の翌日（初回は開始日）から今日までの支払日を計算
-    const dates = occurrencesBetween(
-      ruleFromRecord(fc),
-      done === null ? dbToDateOnly(fc.startDate) : addDays(done, 1),
-      today
-    );
+    const from = done === null ? dbToDateOnly(fc.startDate) : addDays(done, 1);
+    let dates = occurrencesBetween(ruleFromRecord(fc), from, today);
+
+    // 2b. 同じ期間に条件に当てはまる手入力・CSV の取引がある回は作らない（F7）。条件の無い定期は当てはまらないので読まない
+    if (dates.length > 0 && (fc.matchNote || fc.categoryId)) {
+      const existing = await existingTxs(db, userId, fc.type, `${from.slice(0, 7)}-01`, today);
+      const c = conditionFromRecord(fc);
+      dates = dates.filter((d) => !hasMatchingInPeriod(existing, c, d, fc.cycle as Cycle));
+    }
 
     // 3. 取引を作る。金額・名前・種別は「いまの定期の値」を写す（作った後の取引は定期と独立）
     if (dates.length > 0) {
@@ -71,6 +78,59 @@ export async function expandFixedCostsForUser(db: UserDb, userId: string, today:
     });
   }
   return created;
+}
+
+/** 期間の手入力・CSV の取引（F7 の確認用。自動で作った取引は印で防ぐので読まない） */
+async function existingTxs(db: UserDb, userId: string, type: string, from: string, to: string): Promise<FixedTx[]> {
+  const rows = await db.transaction.findMany({
+    where: {
+      userId,
+      type,
+      deletedAt: null,
+      source: { not: "auto" },
+      transactionDate: { gte: dateOnlyToDb(from), lte: dateOnlyToDb(to) },
+    },
+    select: { transactionDate: true, amount: true, type: true, categoryId: true, note: true, source: true },
+  });
+  return rows.map(txFromRecord);
+}
+
+/** DB の取引の行 → 固定の判定に使う形 */
+export function txFromRecord(t: {
+  transactionDate: Date;
+  amount: unknown;
+  type: string;
+  categoryId: string | null;
+  note: string | null;
+  source: string;
+}): FixedTx {
+  return {
+    date: dbToDateOnly(t.transactionDate),
+    amount: Number(t.amount),
+    type: t.type as "income" | "expense",
+    categoryId: t.categoryId,
+    note: t.note,
+    source: t.source,
+  };
+}
+
+/** DB の定期の行 → 固定の判定の条件 */
+export function conditionFromRecord(fc: {
+  id: string;
+  type: string;
+  categoryId: string | null;
+  amount: unknown;
+  matchNote: string | null;
+  matchAnyAmount: boolean;
+}): FixedCondition {
+  return {
+    id: fc.id,
+    type: fc.type as "income" | "expense",
+    categoryId: fc.categoryId,
+    amount: Number(fc.amount),
+    matchNote: fc.matchNote,
+    matchAnyAmount: fc.matchAnyAmount,
+  };
 }
 
 /** DB の定期の行 → 支払日計算の規則（一覧の次回日付でも使う） */

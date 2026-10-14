@@ -134,6 +134,9 @@ model FixedCost {
   endDate          DateTime? @map("end_date") @db.Date
   generatedThrough DateTime? @map("generated_through") @db.Date // この日まで展開済み
   isActive         Boolean   @default(true) @map("is_active")
+  // 固定の判定の条件（lib/fixed/classify.ts）。手入力・CSV の取引がそろえば「固定」として集計する
+  matchNote        String?   @map("match_note") // メモに含まれる語句。NULL なら見ない
+  matchAnyAmount   Boolean   @default(false) @map("match_any_amount") // true なら金額を見ない
   createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz
 
   // Relations
