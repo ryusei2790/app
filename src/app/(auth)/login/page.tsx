@@ -14,12 +14,13 @@ import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
   const router = useRouter();
-  const supabase = createClient();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Supabase のクライアントは押したときに作る（描画時に作ると、公開キーの無い環境で事前レンダリングが落ちる）
 
   /** メール＋パスワードでログイン */
   async function handleEmailLogin(e: React.FormEvent) {
@@ -27,7 +28,7 @@ export default function LoginPage() {
     setError(null);
     setLoading(true);
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { error } = await createClient().auth.signInWithPassword({
       email,
       password,
     });
@@ -45,7 +46,7 @@ export default function LoginPage() {
   /** Google OAuth でログイン */
   async function handleGoogleLogin() {
     setError(null);
-    const { error } = await supabase.auth.signInWithOAuth({
+    const { error } = await createClient().auth.signInWithOAuth({
       provider: "google",
       options: {
         redirectTo: `${window.location.origin}/auth/callback`,
