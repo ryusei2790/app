@@ -154,10 +154,12 @@ describe("T3 月別の一覧・集計は JST の月境界で正しい", () => {
     expect(dates).toEqual(["2026-10-01", "2026-10-31"]);
   });
 
-  it("10月の集計は 10 + 100 = 110 円", async () => {
+  it("10月の集計は 10 + 100 = 110 円（今日より後の行は「予定」に分かれる: #425 D4）", async () => {
     signInAs({ id: M.id, email: M.email });
     const res = await summary.GET(getRequest("/api/v1/dashboard/summary?year=2026&month=10"));
-    expect((await readJson(res)).data.total_expense).toBe(110);
+    const { data } = await readJson(res);
+    // 「今月は今日まで」なので、10/31 の行は今日が 10/31 より前なら予定に入る。合計は変わらない
+    expect(data.total_expense + data.scheduled.expense).toBe(110);
   });
 
   it("12月→翌年1月の境界も正しい", async () => {
@@ -169,8 +171,9 @@ describe("T3 月別の一覧・集計は JST の月境界で正しい", () => {
     );
     const dec = await readJson(await summary.GET(getRequest("/x?year=2026&month=12")));
     const jan = await readJson(await summary.GET(getRequest("/x?year=2027&month=1")));
-    expect(dec.data.total_expense).toBe(7);
-    expect(jan.data.total_expense).toBe(70);
+    // 先の月は全部「予定」、過ぎた月は全部実績。どちらでも 9/30・11/1 の行は混ざらない
+    expect(dec.data.total_expense + dec.data.scheduled.expense).toBe(7);
+    expect(jan.data.total_expense + jan.data.scheduled.expense).toBe(70);
   });
 
   it("月が 1〜12 以外なら 422", async () => {
