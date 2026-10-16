@@ -50,3 +50,6 @@ next-env.d.ts
 # 家計の生データ（CSV）は入れない。テスト用の作り物だけ例外
 *.csv
 !tests/fixtures/**/*.csv
+
+# 実データの回帰テストの期待値の本体（金額を含む）。git にはハッシュだけ（scripts/regression/expected.json）
+/.regression/

@@ -2,7 +2,7 @@
  * @file components/transactions/TransactionForm.tsx
  * @description 収支手動入力フォーム。
  * カレンダーの日付クリック時のモーダル内で使う。
- * 金額・種別・カテゴリ・口座・メモを入力して API に POST する。
+ * 金額・種別・種類（通常／返金／振替／借入・返済）・カテゴリ・口座・メモを入力して API に POST する。
  */
 
 "use client";
@@ -10,6 +10,7 @@
 import { useState } from "react";
 import { useAccounts } from "@/hooks/useAccounts";
 import { useCategories } from "@/hooks/useCategories";
+import { KIND_HELP, KIND_LABELS, TRANSACTION_KINDS, type TransactionKind } from "@/lib/aggregate/definitions";
 import type { CreateTransactionRequest } from "@/types/api";
 
 interface TransactionFormProps {
@@ -26,7 +27,14 @@ export function TransactionForm({
 }: TransactionFormProps) {
   const { accounts } = useAccounts();
   const [type, setType] = useState<"income" | "expense">("expense");
-  const { categories } = useCategories(type);
+  // 種類（mywork#425）。返金は「戻ってきたお金」なので向きは収入に固定し、カテゴリーは元の支出のものを選ぶ
+  const [kind, setKind] = useState<TransactionKind>("normal");
+  const { categories } = useCategories(kind === "refund" ? "expense" : type);
+
+  function changeKind(next: TransactionKind) {
+    setKind(next);
+    if (next === "refund") setType("income");
+  }
 
   const [amount, setAmount] = useState("");
   const [categoryId, setCategoryId] = useState("");
@@ -49,6 +57,7 @@ export function TransactionForm({
     const success = await onSubmit({
       amount: parseFloat(amount),
       type,
+      kind,
       category_id: categoryId || undefined,
       account_id: accountId,
       transaction_date: date,
@@ -73,7 +82,8 @@ export function TransactionForm({
         <button
           type="button"
           onClick={() => setType("expense")}
-          className={`flex-1 py-2 text-sm font-medium transition-colors ${
+          disabled={kind === "refund"}
+          className={`flex-1 py-2 text-sm font-medium transition-colors disabled:opacity-40 ${
             type === "expense"
               ? "bg-red-500 text-white"
               : "bg-white text-gray-600 hover:bg-gray-50"
@@ -92,6 +102,26 @@ export function TransactionForm({
         >
           収入
         </button>
+      </div>
+
+      {/* 種類（通常／返金／振替／借入・返済）。集計の定義は lib/aggregate/definitions.ts */}
+      <div>
+        <label htmlFor="tx-kind" className="block text-sm font-medium text-gray-700 mb-1">
+          種類
+        </label>
+        <select
+          id="tx-kind"
+          value={kind}
+          onChange={(e) => changeKind(e.target.value as TransactionKind)}
+          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        >
+          {TRANSACTION_KINDS.map((k) => (
+            <option key={k} value={k}>
+              {KIND_LABELS[k]}
+            </option>
+          ))}
+        </select>
+        <p className="mt-1 text-xs text-gray-500">{KIND_HELP[kind]}</p>
       </div>
 
       {/* 日付 */}

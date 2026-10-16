@@ -437,6 +437,9 @@ export function CsvImportView({ isOwner = false }: { isOwner?: boolean }) {
             <Link href="/transactions" className="rounded-lg border border-green-300 bg-white px-3 py-1.5 text-green-800">
               収支一覧を見る
             </Link>
+            <Link href="/review" className="rounded-lg border border-green-300 bg-white px-3 py-1.5 text-green-800">
+              要確認を見る（返金候補など）
+            </Link>
             {isOwner && (
               <Link href="/budget" className="rounded-lg bg-green-700 px-3 py-1.5 text-white">
                 予算台帳で見る →

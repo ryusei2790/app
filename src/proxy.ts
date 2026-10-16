@@ -55,7 +55,9 @@ export async function proxy(request: NextRequest) {
     request.nextUrl.pathname.startsWith("/fixed-costs") ||
     request.nextUrl.pathname.startsWith("/settings") ||
     request.nextUrl.pathname.startsWith("/receipts") ||
+    request.nextUrl.pathname.startsWith("/review") ||
     request.nextUrl.pathname.startsWith("/budget");
+  // /about/definitions（数字の定義）はログイン前でも読める（mywork#425 第1弾）
 
   if (!user && isProtectedRoute) {
     const url = request.nextUrl.clone();

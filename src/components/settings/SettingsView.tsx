@@ -1,16 +1,17 @@
 /**
  * @file components/settings/SettingsView.tsx
  * @description 設定画面（Client Component）。
- * 口座管理（追加・削除）とカスタムカテゴリ管理（追加・削除）を行う。
- * タブ切替で口座/カテゴリを切り替える。
+ * 口座管理（追加・削除）・カスタムカテゴリ管理（追加・削除）・「データの流れ」（何が外に出るかの表）をタブで切り替える。
  */
 
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
 import type { Account, Category } from "@/types/database";
+import { DataFlowTable } from "./DataFlowTable";
 
-type Tab = "accounts" | "categories";
+type Tab = "accounts" | "categories" | "data-flow";
+const TAB_LABELS: Record<Tab, string> = { accounts: "口座管理", categories: "カテゴリ管理", "data-flow": "データの流れ" };
 
 const ACCOUNT_TYPES = [
   { value: "cash", label: "現金" },
@@ -147,25 +148,28 @@ export function SettingsView() {
   ];
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 space-y-6 sm:p-6">
       <h2 className="text-xl font-bold text-gray-900">設定</h2>
 
       {/* タブ */}
-      <div className="flex border-b border-gray-200">
-        {(["accounts", "categories"] as Tab[]).map((t) => (
+      <div className="flex border-b border-gray-200 overflow-x-auto">
+        {(["accounts", "categories", "data-flow"] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`px-5 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+            className={`whitespace-nowrap px-4 py-2.5 text-sm font-medium border-b-2 transition-colors sm:px-5 ${
               tab === t
                 ? "border-blue-500 text-blue-600"
                 : "border-transparent text-gray-500 hover:text-gray-700"
             }`}
           >
-            {t === "accounts" ? "口座管理" : "カテゴリ管理"}
+            {TAB_LABELS[t]}
           </button>
         ))}
       </div>
+
+      {/* ─── データの流れ（何が外に出るか。mywork#425 第1弾） ─────────── */}
+      {tab === "data-flow" && <DataFlowTable />}
 
       {/* ─── 口座管理タブ ─────────────────────────────────── */}
       {tab === "accounts" && (

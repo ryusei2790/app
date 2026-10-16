@@ -4,6 +4,9 @@
  * 全エンドポイントで統一した JSON 構造を型で保証する。
  */
 
+import type { TransactionKind } from "@/lib/aggregate/definitions";
+import type { MonthSummary as BudgetMonthSummary } from "@/lib/budget/summary";
+
 // ─── 共通レスポンス形式 ──────────────────────────────────
 
 /** 成功レスポンスの共通ラッパー */
@@ -49,6 +52,8 @@ export interface CreateTransactionRequest {
   category_id?: string;
   amount: number;
   type: "income" | "expense";
+  /** 取引の種類（既定 normal）。返金は type: "income" とだけ組める（lib/aggregate/definitions.ts） */
+  kind?: TransactionKind;
   transaction_date: string; // "YYYY-MM-DD"
   note?: string;
   source: "manual";
@@ -119,7 +124,44 @@ export interface CsvPreviewRow {
   amount: number;
 }
 
-// ─── Dashboard ───────────────────────────────────────
+// ─── Summary（統一集計 API /api/v1/summary。mywork#425 第1弾） ─────────
+
+export type PeriodStatus = "past" | "current" | "future";
+
+export interface SummaryResponse {
+  definitions_version: string;
+  month: string;
+  today: string;
+  period: { start: string; end: string; status: PeriodStatus };
+  expense: { total: number; purchases: number; refunds: number; purchase_count: number; refund_count: number; refund_heavy: boolean };
+  income: { total: number; count: number };
+  transfers: { out: number; in: number; count: number };
+  loans: { repaid: number; borrowed: number; count: number };
+  /** 今日より後の日付の取引（定期のまだ来ていない回は upcoming） */
+  scheduled: { expense: number; income: number; count: number; items: ScheduledItem[] };
+  /** 収入 − 支出（今日まで） */
+  balance: number;
+  fixed: DashboardSummary["fixed"];
+  by_category: CategorySummary[];
+  /** 予算の費目（社長だけ。他は null） */
+  frames: BudgetMonthSummary | null;
+  review: { refund_candidates: number; unassigned: number; scheduled: number; duplicates: number };
+  upcoming: UpcomingItem[];
+  /** 互換（同じ数字） */
+  total_income: number;
+  total_expense: number;
+}
+
+export interface ScheduledItem {
+  id: string | null;
+  date: string;
+  name: string;
+  type: "income" | "expense";
+  kind: TransactionKind;
+  amount: number;
+}
+
+// ─── Dashboard（古い型。/api/v1/dashboard/summary も同じ数字を返す） ───────
 
 export interface DashboardSummary {
   total_income: number;
@@ -149,6 +191,10 @@ export interface CategorySummary {
   category_id: string;
   name: string;
   color: string | null;
+  /** 購入 − 返金（返金が多ければ負になりうる） */
   amount: number;
+  purchases?: number;
+  refunds?: number;
+  count?: number;
   ratio: number;
 }

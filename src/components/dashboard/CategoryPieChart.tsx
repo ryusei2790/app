@@ -1,7 +1,7 @@
 /**
  * @file components/dashboard/CategoryPieChart.tsx
  * @description カテゴリ別支出の円グラフ（Recharts）。
- * カテゴリごとの金額と構成比をドーナツグラフで可視化する。
+ * カテゴリごとの金額（購入 − 返金）と構成比をドーナツグラフで可視化する。負の額（返金が多い）は一覧にだけ出す。
  */
 
 "use client";
@@ -53,13 +53,16 @@ export function CategoryPieChart({ data }: CategoryPieChartProps) {
     );
   }
 
+  // 返金が購入より多いカテゴリーは負の額になる（定義 1）。円グラフには 0 として描き、下の一覧で負の額を見せる
+  const pieData = data.map((d) => ({ ...d, amount: Math.max(d.amount, 0) }));
+
   return (
     <div className="space-y-4">
       {/* 円グラフ */}
       <ResponsiveContainer width="100%" height={240}>
         <PieChart>
           <Pie
-            data={data}
+            data={pieData}
             cx="50%"
             cy="50%"
             innerRadius={60}  // ドーナツ形状
@@ -99,8 +102,9 @@ export function CategoryPieChart({ data }: CategoryPieChartProps) {
             <span className="text-xs text-gray-500">
               {Math.round(cat.ratio * 100)}%
             </span>
-            <span className="text-sm font-medium text-gray-900 w-24 text-right">
-              {formatAmount(cat.amount)}
+            <span className={`text-sm font-medium w-24 text-right tabular-nums ${cat.amount < 0 ? "text-green-700" : "text-gray-900"}`}>
+              {cat.amount < 0 ? "-" : ""}
+              {formatAmount(Math.abs(cat.amount))}
             </span>
           </li>
         ))}

@@ -4,6 +4,8 @@
  * 画面で隠すのは見た目のためで、守りの本体は API（requireOwner）と画面の notFound()。
  */
 
+import { DEFINITIONS_PATH } from "@/lib/aggregate/definitions";
+
 export interface NavItem {
   href: string;
   label: string;
@@ -15,8 +17,10 @@ const COMMON_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "ダッシュボード", icon: "📊" },
   { href: "/receipts/new", label: "レシート", icon: "📷" },
   { href: "/transactions", label: "収支一覧", icon: "📋" },
+  { href: "/review", label: "要確認", icon: "🔍" },
   { href: "/import", label: "CSVインポート", icon: "📥" },
   { href: "/fixed-costs", label: "定期の収入・支出", icon: "🔁" },
+  { href: DEFINITIONS_PATH, label: "数字の定義", icon: "📖" },
   { href: "/settings", label: "設定", icon: "⚙️" },
 ];
 
