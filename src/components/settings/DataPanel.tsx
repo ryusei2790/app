@@ -13,7 +13,7 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ImportHistoryList } from "@/components/import/ImportHistoryList";
 import { downloadFromApi } from "./download";
 
@@ -163,6 +163,12 @@ export function DataPanel() {
   const [confirmWord, setConfirmWord] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [deleteMsg, setDeleteMsg] = useState<Msg>(null);
+  const confirmRef = useRef<HTMLInputElement>(null);
+
+  // ①の保存が済んだら②の欄へ移る（スマホで次に何をするか迷わないように）
+  useEffect(() => {
+    if (backupFile) confirmRef.current?.focus();
+  }, [backupFile]);
 
   async function backupBeforeDelete() {
     setBackingUp(true);
@@ -241,7 +247,8 @@ export function DataPanel() {
       <section className="rounded-xl border border-gray-200 bg-white p-4 space-y-3">
         <h3 className="text-sm font-semibold text-gray-800">取り込みの取り消し</h3>
         <p className="text-xs text-gray-500">間違えて入れた CSV を、その取り込みの分だけ消します。定期・カテゴリーは残ります。</p>
-        <ImportHistoryList reloadKey={reloadKey} />
+        {/* key で作り直す: 復元・全削除のあとに、前の「取り消しました」の表示を残さない */}
+        <ImportHistoryList key={reloadKey} />
       </section>
 
       {/* 3. 復元 */}
@@ -304,6 +311,7 @@ export function DataPanel() {
               ② 確認のため「{DELETE_WORD}」と入力
               <input
                 type="text"
+                ref={confirmRef}
                 value={confirmWord}
                 onChange={(e) => setConfirmWord(e.target.value)}
                 disabled={!backupFile}

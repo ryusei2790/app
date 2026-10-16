@@ -159,7 +159,8 @@ export function SettingsView() {
       <h2 className="text-xl font-bold text-gray-900">設定</h2>
 
       {/* タブ */}
-      <div className="flex border-b border-gray-200 overflow-x-auto">
+      {/* スマホ幅（375px）では4つが1行に入らず、横スクロールだと「データの流れ」が隠れるので 2×2 に並べる */}
+      <div className="grid grid-cols-2 border-b border-gray-200 sm:flex">
         {(["accounts", "categories", "data", "data-flow"] as Tab[]).map((t) => (
           <button
             key={t}
