@@ -236,6 +236,25 @@ describe("X3 復元", () => {
     expect(withoutStamp(again)).toEqual(withoutStamp(original));
   });
 
+  it("同じミリ秒に作った行（DB はマイクロ秒まで持つ）でも、復元の前後で並びが変わらない", async () => {
+    const me = await newUser("x3-micro");
+    const { account } = await seedFull(me.id, "自分");
+    // マイクロ秒の順（A→B）と id の順（B→A）が逆になる2行
+    const ins = (id: string, at: string, note: string) =>
+      adminSql(
+        `INSERT INTO transactions (id, user_id, account_id, amount, type, transaction_date, note, source, created_at, updated_at)
+         VALUES ($1, $2, $3, 100, 'expense', '2026-09-01', $4, 'manual', $5, $5)`,
+        [id, me.id, account, note, at]
+      );
+    await ins("ffffffff-ffff-4fff-bfff-ffffffffffff", "2026-01-01T00:00:00.000100Z", "A");
+    await ins("00000000-0000-4000-8000-000000000001", "2026-01-01T00:00:00.000900Z", "B");
+    as(me);
+    const original = await fullJson();
+    await deleteAll({ confirm: "削除" });
+    expect((await restore(original)).status).toBe(200);
+    expect(withoutStamp(await fullJson())).toEqual(withoutStamp(original));
+  });
+
   it("自動で作られた費目の初期値だけがある帳簿は「空」とみなし、バックアップの費目で置き換える", async () => {
     const me = await newUser("x3-frames");
     await seedFull(me.id, "自分");
