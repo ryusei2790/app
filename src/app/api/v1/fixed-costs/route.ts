@@ -10,7 +10,8 @@ import { checkRefs, normalizeCategoryId } from "@/lib/ownership";
 import { parseFixedCostInput, type FixedCostFields } from "@/lib/validation/fixed-cost";
 import { dateOnlyToDb, todayJst } from "@/lib/date/jst";
 import { monthlyEquivalent, type Cycle } from "@/lib/fixed-costs/schedule";
-import { nextDueDate } from "@/lib/fixed-costs/expand";
+import { conditionFromRecord, nextDueDate, txFromRecord } from "@/lib/fixed-costs/expand";
+import { countMatches } from "@/lib/fixed/classify";
 import { ok, created, error, requireAuth, readJsonBody, serializeFixedCost } from "@/lib/api-helpers";
 
 const INCLUDE = {
@@ -22,17 +23,31 @@ const INCLUDE = {
  * GET /api/v1/fixed-costs — 一覧（R9）
  * 次回の支払日（next_date）の昇順。止めている・終わったものは next_date=null で最後。
  * meta に月あたりの支出合計・収入合計（有効なものだけ。毎年は ÷12、毎週は ×52÷12）。
+ * 各定期に matched_count（固定の条件に当てはまった手入力・CSV の取引の件数。条件が合っているかを本人が確かめる用）。
  */
 export async function GET() {
   const { user, response } = await requireAuth();
   if (response) return response;
 
-  const fixedCosts = await withUserDb(user.id, (db) =>
-    db.fixedCost.findMany({ where: { userId: user.id }, include: INCLUDE, orderBy: { createdAt: "asc" } })
-  );
+  const { fixedCosts, txs } = await withUserDb(user.id, async (db) => {
+    const fixedCosts = await db.fixedCost.findMany({ where: { userId: user.id }, include: INCLUDE, orderBy: { createdAt: "asc" } });
+    // 条件のある定期があるときだけ、全期間の手入力・CSV の取引を読んで件数を数える
+    const txs = fixedCosts.some((fc) => fc.matchNote || fc.categoryId)
+      ? await db.transaction.findMany({
+          where: { userId: user.id, deletedAt: null, source: { not: "auto" } },
+          select: { transactionDate: true, amount: true, type: true, categoryId: true, note: true, source: true },
+        })
+      : [];
+    return { fixedCosts, txs };
+  });
 
   const today = todayJst();
-  const items = fixedCosts.map((fc) => ({ ...serializeFixedCost(fc), next_date: nextDueDate(fc, today) }));
+  const counts = countMatches(txs.map(txFromRecord), fixedCosts.map(conditionFromRecord));
+  const items = fixedCosts.map((fc) => ({
+    ...serializeFixedCost(fc),
+    next_date: nextDueDate(fc, today),
+    matched_count: counts[fc.id] ?? 0,
+  }));
   // next_date の昇順・null は最後。同じ日なら登録順（findMany の並びを保つ安定ソート）
   items.sort((a, b) => {
     if (a.next_date === b.next_date) return 0;
@@ -91,6 +106,8 @@ export async function POST(request: Request) {
         startDate: dateOnlyToDb(f.startDate),
         endDate: f.endDate ? dateOnlyToDb(f.endDate) : null,
         isActive: f.isActive,
+        matchNote: f.matchNote,
+        matchAnyAmount: f.matchAnyAmount,
       },
       include: INCLUDE,
     });

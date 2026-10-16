@@ -91,6 +91,8 @@ export function serializeFixedCost(fc: any) {
     start_date: fc.startDate instanceof Date ? fc.startDate.toISOString().slice(0, 10) : fc.startDate ?? null,
     end_date: fc.endDate instanceof Date ? fc.endDate.toISOString().slice(0, 10) : fc.endDate ?? null,
     is_active: fc.isActive,
+    match_note: fc.matchNote ?? null,
+    match_any_amount: fc.matchAnyAmount ?? false,
     created_at: fc.createdAt instanceof Date
       ? fc.createdAt.toISOString()
       : String(fc.createdAt),

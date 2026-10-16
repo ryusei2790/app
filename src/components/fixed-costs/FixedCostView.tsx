@@ -2,6 +2,8 @@
  * @file components/fixed-costs/FixedCostView.tsx
  * @description 定期支出・定期収入の管理画面（Client Component。テスト一覧 C・W5）。
  * 一覧（次回の支払日順）・月あたりの支出／収入合計・追加・編集・一時停止・削除を行う。
+ * 「固定として数える条件」（メモの語句・金額を見ないか）を持たせると、これまでの手入力・CSV の取引のうち
+ * 条件にそろうものがダッシュボードで固定として集計される（mywork#229。当てはまった件数を一覧に出す）。
  * 追加・編集の後は /api/v1/fixed-costs/generate を呼び、今日までの分をすぐ取引にする
  * （毎日の定期実行を待たずにカレンダーへ出すため）。
  * スマホ幅（375px）で1列、広い画面で2列のフォームにする。
@@ -27,6 +29,9 @@ interface FixedCost {
   start_date: string;
   end_date: string | null;
   is_active: boolean;
+  match_note: string | null;
+  match_any_amount: boolean;
+  matched_count: number;
   next_date: string | null;
   account_id: string;
   category_id: string | null;
@@ -89,6 +94,8 @@ const emptyForm = () => ({
   end_date: "",
   account_id: "",
   category_id: "",
+  match_note: "",
+  match_any_amount: false,
 });
 
 type FormState = ReturnType<typeof emptyForm>;
@@ -104,6 +111,8 @@ export function FixedCostView() {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // 新しく追加するとき、メモの語句を自分で触るまでは名前をそのまま語句にする（仕送り・ジム・iCloud+ など名前＝メモが多い）
+  const [noteTouched, setNoteTouched] = useState(false);
 
   // 一覧の再読み込みは reload を進めて effect に任せる（effect の中で同期的に setState しない）
   const [reload, setReload] = useState(0);
@@ -113,7 +122,7 @@ export function FixedCostView() {
     let alive = true;
     fetch("/api/v1/fixed-costs")
       .then(async (res) => {
-        if (!res.ok) throw new Error("定期支出の取得に失敗しました");
+        if (!res.ok) throw new Error("定期の収入・支出の取得に失敗しました");
         const json = await res.json();
         if (!alive) return;
         setFixedCosts(json.data);
@@ -128,12 +137,14 @@ export function FixedCostView() {
 
   function openAdd() {
     setEditingId(null);
+    setNoteTouched(false);
     setForm(emptyForm());
     setShowForm(true);
   }
 
   function openEdit(fc: FixedCost) {
     setEditingId(fc.id);
+    setNoteTouched(true);
     setForm({
       type: fc.type,
       name: fc.name,
@@ -145,6 +156,8 @@ export function FixedCostView() {
       end_date: fc.end_date ?? "",
       account_id: fc.account_id,
       category_id: fc.category_id ?? "",
+      match_note: fc.match_note ?? "",
+      match_any_amount: fc.match_any_amount,
     });
     setShowForm(true);
   }
@@ -169,6 +182,8 @@ export function FixedCostView() {
       end_date: form.end_date || null,
       account_id: form.account_id,
       category_id: form.category_id || null,
+      match_note: form.match_note.trim() || null,
+      match_any_amount: form.match_any_amount,
     };
     try {
       const res = await fetch(editingId ? `/api/v1/fixed-costs/${editingId}` : "/api/v1/fixed-costs", {
@@ -225,8 +240,8 @@ export function FixedCostView() {
       {/* ヘッダー */}
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold text-gray-900">定期支出</h2>
-          <p className="text-sm text-gray-500 mt-0.5">支払日になると自動で収支に追加されます</p>
+          <h2 className="text-xl font-bold text-gray-900">定期の収入・支出</h2>
+          <p className="text-sm text-gray-500 mt-0.5">給料・仕送り・家賃・サブスクなど。支払日になると自動で収支に追加されます</p>
         </div>
         <button
           onClick={openAdd}
@@ -240,13 +255,13 @@ export function FixedCostView() {
       {!loading && (
         <div className="grid grid-cols-2 gap-3">
           <div className="rounded-xl bg-purple-50 border border-purple-100 px-4 py-3">
-            <p className="text-xs font-medium text-purple-600">月あたりの定期支出</p>
+            <p className="text-xs font-medium text-purple-600">月あたりの固定支出</p>
             <p className="mt-1 text-xl font-bold text-purple-700" data-testid="monthly-expense-total">
               {formatAmount(totals.monthly_expense_total)}
             </p>
           </div>
           <div className="rounded-xl bg-green-50 border border-green-100 px-4 py-3">
-            <p className="text-xs font-medium text-green-600">月あたりの定期収入</p>
+            <p className="text-xs font-medium text-green-600">月あたりの固定収入</p>
             <p className="mt-1 text-xl font-bold text-green-700">{formatAmount(totals.monthly_income_total)}</p>
           </div>
         </div>
@@ -281,8 +296,14 @@ export function FixedCostView() {
                 id="fc-name"
                 type="text"
                 value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                placeholder="家賃、Netflix、給料…"
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    name: e.target.value,
+                    ...(noteTouched || editingId ? {} : { match_note: e.target.value.slice(0, 50) }),
+                  })
+                }
+                placeholder="仕送り、家賃、iCloud+、給料…"
                 className={input}
               />
             </div>
@@ -395,6 +416,42 @@ export function FixedCostView() {
             </div>
           </div>
 
+          {/* 固定として数える条件（これまでの取引をさかのぼって判定する） */}
+          <fieldset className="rounded-lg border border-blue-100 bg-white p-3 space-y-3">
+            <legend className="px-1 text-xs font-semibold text-blue-800">固定として数える条件（任意）</legend>
+            <p className="text-xs text-gray-500">
+              これまでの取引のうち、種別・カテゴリ・メモの語句・金額がそろうものをダッシュボードで「固定」として数えます。
+            </p>
+            <div>
+              <label htmlFor="fc-match-note" className={label}>メモに含まれる語句</label>
+              <input
+                id="fc-match-note"
+                type="text"
+                maxLength={50}
+                value={form.match_note}
+                onChange={(e) => {
+                  setNoteTouched(true);
+                  setForm({ ...form, match_note: e.target.value });
+                }}
+                placeholder="例: 仕送り、iCloud"
+                className={input}
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                メモが空の取引（給料・家賃など）は、語句を消してカテゴリを選ぶと、カテゴリと金額で数えます。
+                語句もカテゴリも無いと、これまでの取引は数えません。
+              </p>
+            </div>
+            <label className="flex items-center gap-2 text-sm text-gray-700">
+              <input
+                type="checkbox"
+                checked={form.match_any_amount}
+                onChange={(e) => setForm({ ...form, match_any_amount: e.target.checked })}
+                className="h-4 w-4"
+              />
+              金額が毎回変わる（値上げ・ドル建て。金額は見ない）
+            </label>
+          </fieldset>
+
           <div className="flex gap-2">
             <button
               type="button"
@@ -418,9 +475,11 @@ export function FixedCostView() {
           ))}
         </div>
       ) : fixedCosts.length === 0 ? (
-        <div className="py-12 text-center text-sm text-gray-400">定期支出が登録されていません</div>
+        <div className="py-12 text-center text-sm text-gray-400">
+          定期の収入・支出が登録されていません。「+ 追加」から給料・仕送り・家賃・サブスクを登録できます
+        </div>
       ) : (
-        <ul className="space-y-3" aria-label="定期支出の一覧">
+        <ul className="space-y-3" aria-label="定期の収入・支出の一覧">
           {fixedCosts.map((fc) => (
             <li
               key={fc.id}
@@ -446,6 +505,12 @@ export function FixedCostView() {
                     </p>
                     <p className="text-xs text-gray-500" data-testid="next-date">
                       {fc.is_active ? (fc.next_date ? `次回 ${shortDate(fc.next_date)}` : "終了") : "停止中"}
+                    </p>
+                    <p className="text-xs text-gray-500" data-testid="matched-count">
+                      {fc.match_note || fc.category_id
+                        ? `これまでの取引で固定として数えた ${fc.matched_count}件` +
+                          (fc.match_note ? `（メモに「${fc.match_note}」${fc.match_any_amount ? "・金額は見ない" : ""}）` : "")
+                        : "条件なし（これまでの取引は数えていません。編集で語句かカテゴリを入れると数えます）"}
                     </p>
                   </div>
                 </div>

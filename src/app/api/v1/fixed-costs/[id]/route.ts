@@ -52,6 +52,8 @@ export async function PUT(request: Request, { params }: Params) {
       startDate: dbToDateOnly(current.startDate),
       endDate: current.endDate ? dbToDateOnly(current.endDate) : null,
       isActive: current.isActive,
+      matchNote: current.matchNote,
+      matchAnyAmount: current.matchAnyAmount,
       ...patch.value,
     });
     if (!merged.ok) return error("VALIDATION_ERROR", merged.message, 422);
@@ -79,6 +81,8 @@ export async function PUT(request: Request, { params }: Params) {
         startDate: dateOnlyToDb(f.startDate),
         endDate: f.endDate ? dateOnlyToDb(f.endDate) : null,
         isActive: f.isActive,
+        matchNote: f.matchNote,
+        matchAnyAmount: f.matchAnyAmount,
         generatedThrough,
         ...(accountId !== undefined ? { accountId: accountId as string } : {}),
         ...(categoryId !== undefined ? { categoryId: categoryId as string | null } : {}),

@@ -12,7 +12,6 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 export default function SignupPage() {
-  const supabase = createClient();
   const router = useRouter();
 
   const [email, setEmail] = useState("");
@@ -26,7 +25,8 @@ export default function SignupPage() {
     setError(null);
     setLoading(true);
 
-    const { data, error } = await supabase.auth.signUp({
+    // Supabase のクライアントは押したときに作る（描画時に作ると、公開キーの無い環境で事前レンダリングが落ちる）
+    const { data, error } = await createClient().auth.signUp({
       email,
       password,
       options: {

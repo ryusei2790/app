@@ -21,10 +21,9 @@ interface SidebarProps {
 export function Sidebar({ userEmail, isOwner = false }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const supabase = createClient();
 
   async function handleLogout() {
-    await supabase.auth.signOut();
+    await createClient().auth.signOut();
     router.push("/login");
     router.refresh();
   }
