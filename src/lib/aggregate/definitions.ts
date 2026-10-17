@@ -227,6 +227,22 @@ export const DATA_FLOW: readonly DataFlowRow[] = [
     hosts: ["openrouter.ai", "api.anthropic.com"],
   },
   {
+    operation: "書き出し（CSV・完全形式のバックアップ）",
+    leaves: "—（本人の行を読んでブラウザに返すだけ）",
+    via: "Vercel の関数 → ブラウザ",
+    storedAt: "本人の端末にファイルとして保存。サーバーには残さない",
+    externalAi: "—",
+    hosts: [],
+  },
+  {
+    operation: "復元・全削除・取り込みの取り消し",
+    leaves: "完全形式のファイルの中身（復元のときだけ）・確認語",
+    via: "Vercel の関数 → Supabase（本人の行だけ）",
+    storedAt: "復元は行として Supabase（ファイルは保存しない）。消した行は戻せない（戻すのは本人のバックアップから）",
+    externalAi: "—",
+    hosts: [],
+  },
+  {
     operation: "定期の収入・支出の展開（毎日）",
     leaves: "—（サーバーの中だけ）",
     via: "Vercel Cron → 関数 → Supabase",

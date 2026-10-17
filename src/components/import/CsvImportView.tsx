@@ -12,10 +12,11 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useAccounts } from "@/hooks/useAccounts";
 import { decodeCsv } from "@/lib/csv/decode";
 import { detectFormat } from "@/lib/csv/kakebo";
+import { ImportHistoryList } from "./ImportHistoryList";
 
 type CardType = "epos" | "saison";
 type Format = "kakebo" | "card";
@@ -51,15 +52,6 @@ interface KakeboResult {
   scheduled_count: number;
 }
 
-interface ImportHistory {
-  id: string;
-  filename: string;
-  status: string;
-  row_count: number;
-  imported_at: string;
-  account: { id: string; name: string };
-}
-
 const NEW_ACCOUNT = "new";
 const yen = (n: number) => `¥${n.toLocaleString("ja-JP")}`;
 
@@ -90,23 +82,9 @@ export function CsvImportView({ isOwner = false }: { isOwner?: boolean }) {
   const [schedule, setSchedule] = useState<Set<string>>(new Set());
   const [kakeboResult, setKakeboResult] = useState<KakeboResult | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [history, setHistory] = useState<ImportHistory[]>([]);
+  // 取り込みが終わるたびに履歴（ImportHistoryList）を取り直すための番号
+  const [historyKey, setHistoryKey] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // インポート履歴を取得（取り込みが終わるたびに取り直す）
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetch("/api/v1/import");
-        if (res.ok) {
-          const json = await res.json();
-          setHistory(json.data);
-        }
-      } catch {
-        // 履歴取得失敗は無視
-      }
-    })();
-  }, [cardResult, kakeboResult]);
 
   /** ファイルを選んだら、前の結果を消して形式を判定する */
   const chooseFile = useCallback(async (f: File) => {
@@ -178,6 +156,7 @@ export function CsvImportView({ isOwner = false }: { isOwner?: boolean }) {
     form.append("schedule_keys", JSON.stringify([...schedule]));
     try {
       setKakeboResult(await post(form));
+      setHistoryKey((n) => n + 1);
       setPreview(null);
       setStatus("success");
       setFile(null);
@@ -202,6 +181,7 @@ export function CsvImportView({ isOwner = false }: { isOwner?: boolean }) {
     form.append("card_type", cardType);
     try {
       setCardResult(await post(form));
+      setHistoryKey((n) => n + 1);
       setStatus("success");
       setFile(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -475,25 +455,11 @@ export function CsvImportView({ isOwner = false }: { isOwner?: boolean }) {
         </div>
       )}
 
-      {/* インポート履歴 */}
-      {history.length > 0 && (
-        <div className="rounded-xl border border-gray-200 bg-white p-4 sm:p-6">
-          <h3 className="mb-4 text-sm font-semibold text-gray-800">インポート履歴</h3>
-          <ul className="divide-y divide-gray-100">
-            {history.slice(0, 10).map((h) => (
-              <li key={h.id} className="flex items-center justify-between gap-3 py-3 text-sm">
-                <div className="min-w-0">
-                  <p className="truncate font-medium text-gray-900">{h.filename}</p>
-                  <p className="text-xs text-gray-500">
-                    {h.account?.name} · {new Date(h.imported_at).toLocaleDateString("ja-JP")}
-                  </p>
-                </div>
-                <span className="shrink-0 text-gray-500">{h.row_count} 件</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      {/* インポート履歴（取り消しもここから。mywork#425 第2弾） */}
+      <div className="rounded-xl border border-gray-200 bg-white p-4 sm:p-6">
+        <h3 className="mb-4 text-sm font-semibold text-gray-800">インポート履歴</h3>
+        <ImportHistoryList reloadKey={historyKey} />
+      </div>
     </div>
   );
 }

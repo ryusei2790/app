@@ -1,7 +1,8 @@
 /**
  * @file components/settings/SettingsView.tsx
  * @description 設定画面（Client Component）。
- * 口座管理（追加・削除）・カスタムカテゴリ管理（追加・削除）・「データの流れ」（何が外に出るかの表）をタブで切り替える。
+ * 口座管理（追加・削除）・カスタムカテゴリ管理（追加・削除）・「データと書き出し」（書き出し・取り込みの取り消し・復元・全削除。mywork#425 第2弾）・
+ * 「データの流れ」（何が外に出るかの表）をタブで切り替える。
  */
 
 "use client";
@@ -9,9 +10,15 @@
 import { useState, useCallback, useEffect } from "react";
 import type { Account, Category } from "@/types/database";
 import { DataFlowTable } from "./DataFlowTable";
+import { DataPanel } from "./DataPanel";
 
-type Tab = "accounts" | "categories" | "data-flow";
-const TAB_LABELS: Record<Tab, string> = { accounts: "口座管理", categories: "カテゴリ管理", "data-flow": "データの流れ" };
+type Tab = "accounts" | "categories" | "data" | "data-flow";
+const TAB_LABELS: Record<Tab, string> = {
+  accounts: "口座管理",
+  categories: "カテゴリ管理",
+  data: "データと書き出し",
+  "data-flow": "データの流れ",
+};
 
 const ACCOUNT_TYPES = [
   { value: "cash", label: "現金" },
@@ -152,8 +159,9 @@ export function SettingsView() {
       <h2 className="text-xl font-bold text-gray-900">設定</h2>
 
       {/* タブ */}
-      <div className="flex border-b border-gray-200 overflow-x-auto">
-        {(["accounts", "categories", "data-flow"] as Tab[]).map((t) => (
+      {/* スマホ幅（375px）では4つが1行に入らず、横スクロールだと「データの流れ」が隠れるので 2×2 に並べる */}
+      <div className="grid grid-cols-2 border-b border-gray-200 sm:flex">
+        {(["accounts", "categories", "data", "data-flow"] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -167,6 +175,9 @@ export function SettingsView() {
           </button>
         ))}
       </div>
+
+      {/* ─── データと書き出し（mywork#425 第2弾） ─────────── */}
+      {tab === "data" && <DataPanel />}
 
       {/* ─── データの流れ（何が外に出るか。mywork#425 第1弾） ─────────── */}
       {tab === "data-flow" && <DataFlowTable />}
