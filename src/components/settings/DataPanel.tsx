@@ -2,7 +2,8 @@
  * @file components/settings/DataPanel.tsx
  * @description 設定の「データと書き出し」タブ（mywork#425 第2弾、設計書 4-6・4-11、テスト W10）。
  *
- *   1. 書き出し … 家計簿アプリ形式 CSV／完全形式（バックアップ）を端末に保存。前回のバックアップの日付を出し、月1回を促す
+ *   1. 書き出し … 家計簿アプリ形式 CSV／完全形式（バックアップ）を端末に保存。前回のバックアップの日付を出し、月1回を促す。
+ *      Google スプレッドシートへの書き出し（SheetExportButton、mywork#591）もここ
  *   2. 取り込みの取り消し … 取り込み履歴から「取り消す」（ImportHistoryList）
  *   3. 復元 … 完全形式のファイルを選ぶ → 件数を確かめる → 空の帳簿に入れる
  *   4. 全削除 … ①バックアップを保存（保存できるまで次へ進めない）→ ②確認語「削除」→ ③全部削除する
@@ -16,6 +17,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ImportHistoryList } from "@/components/import/ImportHistoryList";
 import { downloadFromApi } from "./download";
+import { SheetExportButton } from "./SheetExportButton";
 
 const DELETE_WORD = "削除";
 const LAST_BACKUP_KEY = "kakebo.lastFullBackupAt";
@@ -241,6 +243,7 @@ export function DataPanel() {
           </button>
         </div>
         {exportMsg && <p role="status" className={msgClass(exportMsg)}>{exportMsg.text}</p>}
+        <SheetExportButton />
       </section>
 
       {/* 2. 取り込みの取り消し */}
