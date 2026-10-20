@@ -223,7 +223,7 @@ export const DATA_FLOW: readonly DataFlowRow[] = [
     leaves: "縮小した写真（位置情報などの EXIF は外す）",
     via: "Vercel の関数 → OpenRouter または Anthropic（米国）",
     storedAt: "写真は保存しない。記録は件数・トークン数だけ",
-    externalAi: "RECEIPT_PARSER で選ぶ。未設定なら何も送らない（本番は OpenRouter→Google Vertex 固定の予定）",
+    externalAi: "RECEIPT_PARSER で選ぶ。未設定なら何も送らない（本番は OpenRouter→Google Vertex）",
     hosts: ["openrouter.ai", "api.anthropic.com"],
   },
   {
