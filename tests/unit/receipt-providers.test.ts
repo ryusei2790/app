@@ -10,7 +10,7 @@ import normal from "../fixtures/receipts/normal.json";
 import { createOpenRouterProvider } from "@/lib/receipt/providers/openrouter";
 import { createAnthropicProvider } from "@/lib/receipt/providers/anthropic";
 import { createMockProvider } from "@/lib/receipt/providers/mock";
-import { getReceiptProvider } from "@/lib/receipt/providers";
+import { getReceiptProvider, toAnthropicModelId } from "@/lib/receipt/providers";
 import { readReceipt, ReceiptReadError } from "@/lib/receipt/parser";
 import type { ReceiptProvider } from "@/lib/receipt/providers/types";
 
@@ -43,7 +43,7 @@ const anthropicReply = () => ({
   id: "msg_1",
   type: "message",
   role: "assistant",
-  model: "claude-haiku-4-5",
+  model: "claude-haiku-5-5",
   content: [{ type: "text", text: RECEIPT_JSON }],
   stop_reason: "end_turn",
   stop_sequence: null,
@@ -57,7 +57,7 @@ describe("P10 提供元はアダプタ経由。差し替えても同じ下書き
     ["GLM（OpenRouter）", (c) =>
       createOpenRouterProvider({ apiKey: "k", model: "z-ai/glm-4.6v", providerOrder: ["z-ai"], fetch: fakeFetch(openRouterReply, c) })],
     ["Haiku（Anthropic）", (c) =>
-      createAnthropicProvider({ apiKey: "k", model: "claude-haiku-4-5", fetch: fakeFetch(anthropicReply, c) })],
+      createAnthropicProvider({ apiKey: "k", model: "claude-haiku-5-5", fetch: fakeFetch(anthropicReply, c) })],
     ["モック", () => createMockProvider()],
   ];
 
@@ -82,10 +82,10 @@ describe("P10 提供元はアダプタ経由。差し替えても同じ下書き
 
   it("Anthropic には画像（base64）と指示文だけを送り、トークン数を受け取る", async () => {
     const captured: Captured[] = [];
-    const p = createAnthropicProvider({ apiKey: "k", model: "claude-haiku-4-5", fetch: fakeFetch(anthropicReply, captured) });
+    const p = createAnthropicProvider({ apiKey: "k", model: "claude-haiku-5-5", fetch: fakeFetch(anthropicReply, captured) });
     const r = await readReceipt(p, IMAGE, "image/jpeg", { today: TODAY });
     expect(captured[0].url).toMatch(/\/v1\/messages$/);
-    expect(captured[0].body.model).toBe("claude-haiku-4-5");
+    expect(captured[0].body.model).toBe("claude-haiku-5-5");
     expect(r.usage).toMatchObject({ inputTokens: 1300, outputTokens: 160 });
   });
 });
@@ -93,7 +93,7 @@ describe("P10 提供元はアダプタ経由。差し替えても同じ下書き
 describe("P9 AI に個人情報を送らない", () => {
   it.each([
     ["OpenRouter", (c: Captured[]) => createOpenRouterProvider({ apiKey: "k", model: "m", fetch: fakeFetch(openRouterReply, c) })],
-    ["Anthropic", (c: Captured[]) => createAnthropicProvider({ apiKey: "k", model: "claude-haiku-4-5", fetch: fakeFetch(anthropicReply, c) })],
+    ["Anthropic", (c: Captured[]) => createAnthropicProvider({ apiKey: "k", model: "claude-haiku-5-5", fetch: fakeFetch(anthropicReply, c) })],
   ])("%s への送信に user・metadata（利用者の識別子）を付けない", async (_n, make) => {
     const captured: Captured[] = [];
     await readReceipt(make(captured), IMAGE, "image/jpeg", { today: TODAY });
@@ -145,6 +145,12 @@ describe("P6 の部品: 失敗・時間切れ", () => {
 });
 
 describe("提供元の選び方（環境変数）", () => {
+  it("anthropic の既定は Haiku 5.5、OpenRouter 形式の RECEIPT_MODEL も Anthropic の ID に直す", () => {
+    expect(getReceiptProvider({ RECEIPT_PARSER: "anthropic", ANTHROPIC_API_KEY: "k" }).model).toBe("claude-haiku-5-5");
+    expect(getReceiptProvider({ RECEIPT_PARSER: "anthropic", ANTHROPIC_API_KEY: "k", RECEIPT_MODEL: "anthropic/claude-haiku-5.5" }).model).toBe("claude-haiku-5-5");
+    expect(toAnthropicModelId("claude-sonnet-5-5")).toBe("claude-sonnet-5-5");
+  });
+
   it("RECEIPT_PARSER 未設定・mock はモック", () => {
     expect(getReceiptProvider({}).name).toBe("mock");
     expect(getReceiptProvider({ RECEIPT_PARSER: "mock" }).name).toBe("mock");

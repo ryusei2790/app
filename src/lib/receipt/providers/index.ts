@@ -14,6 +14,16 @@ import type { ReceiptProvider } from "./types";
 
 type Env = Record<string, string | undefined>;
 
+/**
+ * RECEIPT_MODEL が OpenRouter 形式（anthropic/claude-haiku-5.5）のまま anthropic に切り替えても動くよう、
+ * Anthropic の ID（claude-haiku-5-5）に直す。未設定なら Haiku 5.5。
+ */
+export function toAnthropicModelId(model: string | undefined): string {
+  if (!model) return "claude-haiku-5-5";
+  if (!model.startsWith("anthropic/")) return model;
+  return model.slice("anthropic/".length).replace(/\./g, "-");
+}
+
 export function getReceiptProvider(env: Env = process.env): ReceiptProvider {
   const kind = env.RECEIPT_PARSER ?? (env.NODE_ENV === "production" ? undefined : "mock");
   switch (kind) {
@@ -28,7 +38,7 @@ export function getReceiptProvider(env: Env = process.env): ReceiptProvider {
       });
     case "anthropic":
       if (!env.ANTHROPIC_API_KEY) throw new Error("RECEIPT_PARSER=anthropic には ANTHROPIC_API_KEY が必要です");
-      return createAnthropicProvider({ apiKey: env.ANTHROPIC_API_KEY, model: env.RECEIPT_MODEL ?? "claude-haiku-5-5" });
+      return createAnthropicProvider({ apiKey: env.ANTHROPIC_API_KEY, model: toAnthropicModelId(env.RECEIPT_MODEL) });
     default:
       throw new Error("RECEIPT_PARSER を mock / openrouter / anthropic のどれかに設定してください");
   }
