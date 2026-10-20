@@ -94,6 +94,7 @@ export function serializeFixedCost(fc: any) {
     is_active: fc.isActive,
     match_note: fc.matchNote ?? null,
     match_any_amount: fc.matchAnyAmount ?? false,
+    currency: fc.currency ?? "JPY",
     created_at: fc.createdAt instanceof Date
       ? fc.createdAt.toISOString()
       : String(fc.createdAt),

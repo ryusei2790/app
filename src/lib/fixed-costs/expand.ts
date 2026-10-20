@@ -15,18 +15,28 @@
  *   - 画面を開いたとき: api/v1/fixed-costs/generate（ログイン中の本人の分）
  *   - 毎日の定期実行: lib/fixed-costs/cron.ts（全員の分。アプリを開かない人にも作る）
  * どちらも withUserDb の中で呼ぶので RLS が効く。
+ *
+ * ドル建て（currency='USD'）の定期は、支払日ごとにその日のドル円で円に直して取引にし、メモに「$110×151.23円」を残す。
+ * 相場が取れなかった定期は、その回は作らず印も進めない（次に走ったときに作り直す）。
  */
 
 import type { UserDb } from "@/lib/db";
 import { dateOnlyToDb, dbToDateOnly } from "@/lib/date/jst";
 import { hasMatchingInPeriod, type FixedCondition, type FixedTx } from "@/lib/fixed/classify";
+import { getUsdJpyRate, usdToYen, type UsdJpyRate } from "@/lib/fx/usd-jpy";
 import { addDays, nextOccurrence, occurrencesBetween, type Cycle, type ScheduleRule } from "./schedule";
 
 /**
  * @param today JST の今日 "YYYY-MM-DD"（ここまでを作る）。テストで日付を動かせるよう引数で受ける
+ * @param rate ドル円の取り方（テストで差し替える）
  * @returns 新しく作った取引の件数
  */
-export async function expandFixedCostsForUser(db: UserDb, userId: string, today: string): Promise<number> {
+export async function expandFixedCostsForUser(
+  db: UserDb,
+  userId: string,
+  today: string,
+  rate: UsdJpyRate = getUsdJpyRate
+): Promise<number> {
   // 1. 有効で、開始日が今日以前の定期だけ（一時停止中・未開始は作らない: R7）
   const fixedCosts = await db.fixedCost.findMany({
     where: { userId, isActive: true, startDate: { lte: dateOnlyToDb(today) } },
@@ -50,6 +60,21 @@ export async function expandFixedCostsForUser(db: UserDb, userId: string, today:
     }
 
     // 3. 取引を作る。金額・名前・種別は「いまの定期の値」を写す（作った後の取引は定期と独立）
+    //    ドル建ては回ごとにその日のドル円で円に直す。1回でも相場が取れなければこの定期は今回見送る（印も進めない）
+    const yen = new Map<string, { amount: number; note: string }>();
+    if (fc.currency === "USD") {
+      const usd = Number(fc.amount);
+      let missing = false;
+      for (const d of dates) {
+        const r = await rate(d);
+        if (r === null) {
+          missing = true;
+          break;
+        }
+        yen.set(d, { amount: usdToYen(usd, r), note: `${fc.name}（$${usd}×${r}円）` });
+      }
+      if (missing) continue;
+    }
     if (dates.length > 0) {
       const res = await db.transaction.createMany({
         data: dates.map((d) => ({
@@ -57,10 +82,10 @@ export async function expandFixedCostsForUser(db: UserDb, userId: string, today:
           accountId: fc.accountId,
           categoryId: fc.categoryId,
           fixedCostId: fc.id,
-          amount: fc.amount,
+          amount: yen.get(d)?.amount ?? fc.amount,
           type: fc.type,
           transactionDate: dateOnlyToDb(d),
-          note: fc.name,
+          note: yen.get(d)?.note ?? fc.name,
           source: "auto",
         })),
         skipDuplicates: true,
@@ -122,6 +147,7 @@ export function conditionFromRecord(fc: {
   amount: unknown;
   matchNote: string | null;
   matchAnyAmount: boolean;
+  currency?: string;
 }): FixedCondition {
   return {
     id: fc.id,
@@ -129,7 +155,8 @@ export function conditionFromRecord(fc: {
     categoryId: fc.categoryId,
     amount: Number(fc.amount),
     matchNote: fc.matchNote,
-    matchAnyAmount: fc.matchAnyAmount,
+    // ドル建ては円の金額が毎回変わるので、金額は見ない
+    matchAnyAmount: fc.matchAnyAmount || fc.currency === "USD",
   };
 }
 

@@ -324,3 +324,59 @@ describe("定期支出の入力（API）", () => {
     expect((await fcOne.PUT(jsonRequest("PUT", "/x", { cycle: "yearly", billing_month: 6 }), params(id))).status).toBe(200);
   });
 });
+
+describe("ドル建ての定期（#229 残り②）", () => {
+  const fakeRate = (table: Record<string, number | null>) => async (d: string) => table[d] ?? null;
+
+  it("支払日ごとにその日のドル円で円に直し、メモにレートを残す", async () => {
+    const { user, account } = await newUser("usd1");
+    await adminSql(
+      `INSERT INTO fixed_costs (user_id, account_id, name, amount, billing_day, start_date, currency)
+       VALUES ($1,$2,'Claude Max',110,18,'2026-09-01','USD')`,
+      [user.id, account]
+    );
+    const n = await withUserDb(user.id, (db) =>
+      expandFixedCostsForUser(db, user.id, "2026-10-20", fakeRate({ "2026-09-18": 147.5, "2026-10-18": 150.12 }))
+    );
+    expect(n).toBe(2);
+    expect((await autoTx(user.id)).map((x) => [x.d, Number(x.amount), x.note])).toEqual([
+      ["2026-09-18", 16225, "Claude Max（$110×147.5円）"],
+      ["2026-10-18", 16513, "Claude Max（$110×150.12円）"],
+    ]);
+  });
+
+  it("相場が取れなかったら作らず、印も進めない（次に走ったとき作る）", async () => {
+    const { user, account } = await newUser("usd2");
+    await adminSql(
+      `INSERT INTO fixed_costs (user_id, account_id, name, amount, billing_day, start_date, currency)
+       VALUES ($1,$2,'Claude',22,5,'2026-10-01','USD')`,
+      [user.id, account]
+    );
+    const run = (t: Record<string, number | null>) =>
+      withUserDb(user.id, (db) => expandFixedCostsForUser(db, user.id, "2026-10-20", fakeRate(t)));
+    expect(await run({})).toBe(0);
+    expect(await autoTx(user.id)).toEqual([]);
+    expect(await run({ "2026-10-05": 149 })).toBe(1);
+    expect(Number((await autoTx(user.id))[0].amount)).toBe(3278);
+  });
+
+  it("API で USD の定期を登録でき、一覧は円の目安と月の合計を返す", async () => {
+    const { user, account } = await newUser("usd3");
+    as(user);
+    const fx = await import("@/lib/fx/usd-jpy");
+    const spy = vi.spyOn(fx, "getUsdJpyRate").mockResolvedValue(150);
+    try {
+      const r = await createFc({ account_id: account, name: "Claude Max", amount: 110, currency: "USD", billing_day: 28, start_date: addDays(todayJst(), 30) });
+      expect(r.status).toBe(201);
+      expect(r.body.data.currency).toBe("USD");
+      expect((await createFc({ account_id: account, name: "x", amount: 9.999, currency: "USD", billing_day: 1 })).status).toBe(422);
+
+      const { data, meta } = (await (await fcList.GET()).json()) as { data: { amount: number; amount_yen: number }[]; meta: Record<string, number> };
+      expect(data[0]).toMatchObject({ amount: 110, amount_yen: 16500 });
+      expect(meta.monthly_expense_total).toBe(16500);
+      expect(meta.usd_jpy).toBe(150);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+});

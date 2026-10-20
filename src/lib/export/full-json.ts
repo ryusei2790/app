@@ -70,6 +70,8 @@ const fixedCostSchema = z.object({
   is_active: z.boolean(),
   match_note: z.string().max(50).nullable(),
   match_any_amount: z.boolean(),
+  // 2026-10-20 追加。それより前の書き出しには無いので円とみなす
+  currency: z.enum(["JPY", "USD"]).default("JPY"),
   created_at: instant,
 });
 const csvImportSchema = z.object({
@@ -242,6 +244,7 @@ export async function buildBackup(db: UserDb, userId: string, now: Date = new Da
       is_active: f.isActive,
       match_note: f.matchNote,
       match_any_amount: f.matchAnyAmount,
+      currency: f.currency as "JPY" | "USD",
       created_at: iso(f.createdAt),
     })),
     csv_imports: imports.map((i) => ({
@@ -434,6 +437,7 @@ export async function restoreBackup(db: UserDb, userId: string, backup: FullBack
         isActive: f.is_active,
         matchNote: f.match_note,
         matchAnyAmount: f.match_any_amount,
+        currency: f.currency,
         createdAt: new Date(f.created_at),
       })),
     });

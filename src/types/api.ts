@@ -107,6 +107,8 @@ export interface CreateFixedCostRequest {
   match_note?: string | null;
   /** 固定の判定: true なら金額を見ない */
   match_any_amount?: boolean;
+  /** 通貨（既定 JPY）。USD は amount がドルで、取引にするときその日のドル円で円に直す */
+  currency?: "JPY" | "USD";
 }
 
 // ─── CSV Import ──────────────────────────────────────

@@ -138,6 +138,7 @@ model FixedCost {
   // 固定の判定の条件（lib/fixed/classify.ts）。手入力・CSV の取引がそろえば「固定」として集計する
   matchNote        String?   @map("match_note") // メモに含まれる語句。NULL なら見ない
   matchAnyAmount   Boolean   @default(false) @map("match_any_amount") // true なら金額を見ない
+  currency         String    @default("JPY") // "JPY" | "USD"。USD は amount がドルで、取引にするときその日のドル円で円に直す
   createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz
 
   // Relations

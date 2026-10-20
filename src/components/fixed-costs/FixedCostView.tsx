@@ -31,6 +31,9 @@ interface FixedCost {
   is_active: boolean;
   match_note: string | null;
   match_any_amount: boolean;
+  currency: "JPY" | "USD";
+  /** 円での金額。ドル建てはいまのドル円での目安（相場が取れなければ null） */
+  amount_yen: number | null;
   matched_count: number;
   next_date: string | null;
   account_id: string;
@@ -42,6 +45,8 @@ interface FixedCost {
 interface Totals {
   monthly_expense_total: number;
   monthly_income_total: number;
+  /** ドル建ての定期があるときのいまのドル円（無い・取れないときは null） */
+  usd_jpy?: number | null;
 }
 
 const CYCLE_LABEL: Record<Cycle, string> = {
@@ -55,6 +60,12 @@ const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
 
 function formatAmount(amount: number): string {
   return `¥${Math.floor(amount).toLocaleString("ja-JP")}`;
+}
+
+/** 一覧の金額。ドル建ては「$110（約16,500円）」 */
+function formatFcAmount(fc: FixedCost): string {
+  if (fc.currency !== "USD") return formatAmount(fc.amount);
+  return `$${fc.amount}` + (fc.amount_yen !== null ? `（約${formatAmount(fc.amount_yen)}）` : "");
 }
 
 /** 一覧の「いつ払うか」の説明（例: 毎月25日 / 毎週木曜 / 毎年4月1日） */
@@ -96,6 +107,7 @@ const emptyForm = () => ({
   category_id: "",
   match_note: "",
   match_any_amount: false,
+  currency: "JPY" as "JPY" | "USD",
 });
 
 type FormState = ReturnType<typeof emptyForm>;
@@ -158,6 +170,7 @@ export function FixedCostView() {
       category_id: fc.category_id ?? "",
       match_note: fc.match_note ?? "",
       match_any_amount: fc.match_any_amount,
+      currency: fc.currency,
     });
     setShowForm(true);
   }
@@ -184,6 +197,7 @@ export function FixedCostView() {
       category_id: form.category_id || null,
       match_note: form.match_note.trim() || null,
       match_any_amount: form.match_any_amount,
+      currency: form.currency,
     };
     try {
       const res = await fetch(editingId ? `/api/v1/fixed-costs/${editingId}` : "/api/v1/fixed-costs", {
@@ -264,6 +278,13 @@ export function FixedCostView() {
             <p className="text-xs font-medium text-green-600">月あたりの固定収入</p>
             <p className="mt-1 text-xl font-bold text-green-700">{formatAmount(totals.monthly_income_total)}</p>
           </div>
+          {fixedCosts.some((fc) => fc.currency === "USD") && (
+            <p className="col-span-2 text-xs text-gray-500" data-testid="usd-jpy">
+              {totals.usd_jpy
+                ? `ドル建ては今のドル円 1ドル=${totals.usd_jpy}円 で合計に入れています（取引には支払日のドル円で入ります）`
+                : "ドル円の相場が取れなかったので、ドル建ては合計に入っていません"}
+            </p>
+          )}
         </div>
       )}
 
@@ -308,18 +329,33 @@ export function FixedCostView() {
               />
             </div>
             <div>
-              <label htmlFor="fc-amount" className={label}>金額（円）*</label>
+              <label htmlFor="fc-amount" className={label}>金額（{form.currency === "USD" ? "ドル" : "円"}）*</label>
+              <div className="flex gap-2">
+                <select
+                  id="fc-currency"
+                  aria-label="通貨"
+                  value={form.currency}
+                  onChange={(e) => setForm({ ...form, currency: e.target.value as "JPY" | "USD" })}
+                  className="w-24 shrink-0 rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                >
+                  <option value="JPY">円</option>
+                  <option value="USD">ドル</option>
+                </select>
               <input
                 id="fc-amount"
                 type="number"
-                inputMode="numeric"
-                min="1"
-                step="1"
+                inputMode={form.currency === "USD" ? "decimal" : "numeric"}
+                min={form.currency === "USD" ? "0.01" : "1"}
+                step={form.currency === "USD" ? "0.01" : "1"}
                 value={form.amount}
                 onChange={(e) => setForm({ ...form, amount: e.target.value })}
-                placeholder="980"
+                placeholder={form.currency === "USD" ? "20" : "980"}
                 className={input}
               />
+              </div>
+              {form.currency === "USD" && (
+                <p className="mt-1 text-xs text-gray-500">支払日ごとにその日のドル円で円に直して記録します（メモに「$20×151.23円」）</p>
+              )}
             </div>
             <div>
               <label htmlFor="fc-cycle" className={label}>周期</label>
@@ -515,7 +551,7 @@ export function FixedCostView() {
                   </div>
                 </div>
                 <span className={`shrink-0 text-sm font-medium ${fc.type === "income" ? "text-green-700" : "text-gray-900"}`}>
-                  {formatAmount(Number(fc.amount))}
+                  {formatFcAmount(fc)}
                 </span>
               </div>
 

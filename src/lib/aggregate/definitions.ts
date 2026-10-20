@@ -223,8 +223,16 @@ export const DATA_FLOW: readonly DataFlowRow[] = [
     leaves: "縮小した写真（位置情報などの EXIF は外す）",
     via: "Vercel の関数 → OpenRouter または Anthropic（米国）",
     storedAt: "写真は保存しない。記録は件数・トークン数だけ",
-    externalAi: "RECEIPT_PARSER で選ぶ。本番は未設定＝いまは何も送っていない",
+    externalAi: "RECEIPT_PARSER で選ぶ。未設定なら何も送らない（本番は OpenRouter→Google Vertex 固定の予定）",
     hosts: ["openrouter.ai", "api.anthropic.com"],
+  },
+  {
+    operation: "ドル建ての定期を円に直す",
+    leaves: "日付だけ（金額・名前は送らない）",
+    via: "Vercel の関数 → Frankfurter（欧州中央銀行の参照レート）",
+    storedAt: "相場は保存しない。円に直した金額とレートを取引のメモに残す",
+    externalAi: "—",
+    hosts: ["api.frankfurter.dev"],
   },
   {
     operation: "書き出し（CSV・完全形式のバックアップ）",
