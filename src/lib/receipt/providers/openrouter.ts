@@ -1,9 +1,9 @@
 /**
  * @file lib/receipt/providers/openrouter.ts
- * @description OpenRouter 経由で Gemini 3.1 Flash-Lite（既定）や GLM-4.6V を呼ぶアダプタ。
+ * @description OpenRouter 経由で Claude Haiku 5.5（既定）や Gemini 3.1 Flash-Lite を呼ぶアダプタ。
  *
  * 他人のレシートを送るので、OpenRouter の振り分け設定で次を必ず付ける（設計書 論点2）:
- *   - provider.order          … 使う提供元を固定（例: google-vertex）
+ *   - provider.order          … 使う提供元を固定（例: anthropic）
  *   - provider.allow_fallbacks: false … 混んでいても他の提供元に回さない
  *   - provider.data_collection: "deny" … 入力を学習・保存する提供元を使わない
  * 利用者を識別する項目（user など）は送らない（P9）。
