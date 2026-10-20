@@ -12,6 +12,7 @@ import { dateOnlyToDb, todayJst } from "@/lib/date/jst";
 import { monthlyEquivalent, type Cycle } from "@/lib/fixed-costs/schedule";
 import { conditionFromRecord, nextDueDate, txFromRecord } from "@/lib/fixed-costs/expand";
 import { countMatches } from "@/lib/fixed/classify";
+import { getUsdJpyRate, usdToYen } from "@/lib/fx/usd-jpy";
 import { ok, created, error, requireAuth, readJsonBody, serializeFixedCost } from "@/lib/api-helpers";
 
 const INCLUDE = {
@@ -23,6 +24,8 @@ const INCLUDE = {
  * GET /api/v1/fixed-costs — 一覧（R9）
  * 次回の支払日（next_date）の昇順。止めている・終わったものは next_date=null で最後。
  * meta に月あたりの支出合計・収入合計（有効なものだけ。毎年は ÷12、毎週は ×52÷12）。
+ * ドル建ての定期は、いまのドル円（latest）で円に直した目安 amount_yen を付け、月の合計にもその円で入れる。
+ *   相場が取れなければ amount_yen=null・合計に入れない・meta.usd_jpy=null（画面で「相場が取れず合計に入っていない」と出す）。
  * 各定期に matched_count（固定の条件に当てはまった手入力・CSV の取引の件数。条件が合っているかを本人が確かめる用）。
  */
 export async function GET() {
@@ -42,9 +45,13 @@ export async function GET() {
   });
 
   const today = todayJst();
+  const usdJpy = fixedCosts.some((fc) => fc.currency === "USD") ? await getUsdJpyRate("latest") : null;
+  const yenOf = (fc: (typeof fixedCosts)[number]): number | null =>
+    fc.currency === "USD" ? (usdJpy === null ? null : usdToYen(Number(fc.amount), usdJpy)) : Number(fc.amount);
   const counts = countMatches(txs.map(txFromRecord), fixedCosts.map(conditionFromRecord));
   const items = fixedCosts.map((fc) => ({
     ...serializeFixedCost(fc),
+    amount_yen: yenOf(fc),
     next_date: nextDueDate(fc, today),
     matched_count: counts[fc.id] ?? 0,
   }));
@@ -59,8 +66,9 @@ export async function GET() {
   let monthlyExpense = 0;
   let monthlyIncome = 0;
   for (const fc of fixedCosts) {
-    if (!fc.isActive) continue;
-    const m = monthlyEquivalent(Number(fc.amount), fc.cycle as Cycle);
+    const yen = yenOf(fc);
+    if (!fc.isActive || yen === null) continue;
+    const m = monthlyEquivalent(yen, fc.cycle as Cycle);
     if (fc.type === "income") monthlyIncome += m;
     else monthlyExpense += m;
   }
@@ -69,6 +77,7 @@ export async function GET() {
     total: items.length,
     monthly_expense_total: monthlyExpense,
     monthly_income_total: monthlyIncome,
+    usd_jpy: usdJpy,
   });
 }
 
@@ -108,6 +117,7 @@ export async function POST(request: Request) {
         isActive: f.isActive,
         matchNote: f.matchNote,
         matchAnyAmount: f.matchAnyAmount,
+        currency: f.currency,
       },
       include: INCLUDE,
     });

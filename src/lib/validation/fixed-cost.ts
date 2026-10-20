@@ -6,6 +6,7 @@
  *     create … 既定値（支出・毎月・開始日=今日）を埋め、周期との組み合わせまで確かめる
  *     update … 送られた項目だけを返す。組み合わせの検査は既存の値と合わせてから checkRule で行う
  * - match_note / match_any_amount: 固定の判定の条件（メモの語句・金額を見ないか）。空の語句は null（見ない）
+ * - currency: JPY（既定）か USD。USD の amount はドル（小数2桁まで）、JPY は1円単位の整数（checkRule で確かめる）
  * - checkRule: 周期と billing_day / billing_month / 開始日・終了日の組み合わせを確かめる
  * 失敗時は画面にそのまま出せる日本語のメッセージを返す（取引の入力ルールと同じ形）。
  * 口座・カテゴリが自分のものかは DB が要るので、ここではなく route（lib/ownership.ts）で確かめる。
@@ -13,6 +14,9 @@
 
 import { CYCLES, type Cycle } from "@/lib/fixed-costs/schedule";
 import { parseDateOnly, parseYenAmount, type Parsed } from "./transaction";
+
+export const CURRENCIES = ["JPY", "USD"] as const;
+export type Currency = (typeof CURRENCIES)[number];
 
 export interface FixedCostFields {
   name: string;
@@ -28,6 +32,8 @@ export interface FixedCostFields {
   matchNote: string | null;
   /** 固定の判定: true なら金額を見ない */
   matchAnyAmount: boolean;
+  /** 通貨。USD は amount がドルで、取引にするときその日のドル円で円に直す（lib/fixed-costs/expand.ts） */
+  currency: Currency;
 }
 
 const fail = (message: string) => ({ ok: false as const, message });
@@ -42,6 +48,8 @@ export function checkRule(f: FixedCostFields): Parsed<FixedCostFields> {
   if (usesDay && f.billingDay === null) return fail("毎月・毎年の定期には支払日（billing_day）が必要です");
   if (f.cycle === "yearly" && f.billingMonth === null) return fail("毎年の定期には支払月（billing_month）が必要です");
   if (f.endDate !== null && f.endDate < f.startDate) return fail("終了日は開始日以降にしてください");
+  if (f.currency === "JPY" && !Number.isInteger(f.amount)) return fail("金額は1円単位の整数で指定してください");
+  if (f.currency === "USD" && Math.round(f.amount * 100) !== f.amount * 100) return fail("ドルの金額は小数2桁（セント）までにしてください");
   return {
     ok: true,
     value: {
@@ -71,9 +79,10 @@ export function parseFixedCostInput(
     out.name = body.name.trim();
   }
   if (has("amount") || mode === "create") {
-    const a = parseYenAmount(body.amount);
+    // ドルはセントがあるので、整数かどうかは通貨が決まってから checkRule で見る
+    const a = parseYenAmount(typeof body.amount === "number" ? Math.ceil(body.amount) : body.amount);
     if (!a.ok) return a;
-    out.amount = a.value;
+    out.amount = body.amount as number;
   }
   if (has("type")) {
     if (body.type !== "income" && body.type !== "expense") return fail("種別は income か expense で指定してください");
@@ -130,6 +139,11 @@ export function parseFixedCostInput(
     out.matchAnyAmount = body.match_any_amount;
   }
 
+  if (has("currency")) {
+    if (!CURRENCIES.includes(body.currency as Currency)) return fail("通貨は JPY か USD で指定してください");
+    out.currency = body.currency as Currency;
+  }
+
   if (mode === "update") return { ok: true, value: out };
 
   // 2. 作成時は既定値を埋めてから組み合わせを確かめる
@@ -145,5 +159,6 @@ export function parseFixedCostInput(
     isActive: out.isActive ?? true,
     matchNote: out.matchNote ?? null,
     matchAnyAmount: out.matchAnyAmount ?? false,
+    currency: out.currency ?? "JPY",
   });
 }

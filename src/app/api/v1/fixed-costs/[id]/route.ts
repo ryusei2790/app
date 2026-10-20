@@ -54,6 +54,7 @@ export async function PUT(request: Request, { params }: Params) {
       isActive: current.isActive,
       matchNote: current.matchNote,
       matchAnyAmount: current.matchAnyAmount,
+      currency: current.currency as "JPY" | "USD",
       ...patch.value,
     });
     if (!merged.ok) return error("VALIDATION_ERROR", merged.message, 422);
@@ -83,6 +84,7 @@ export async function PUT(request: Request, { params }: Params) {
         isActive: f.isActive,
         matchNote: f.matchNote,
         matchAnyAmount: f.matchAnyAmount,
+        currency: f.currency,
         generatedThrough,
         ...(accountId !== undefined ? { accountId: accountId as string } : {}),
         ...(categoryId !== undefined ? { categoryId: categoryId as string | null } : {}),
