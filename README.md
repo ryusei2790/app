@@ -290,8 +290,8 @@ npm test && npm run test:db
 | 変数 | 用途 | 既定 |
 |---|---|---|
 | `RECEIPT_PARSER` | レシート読み取りの提供元 `mock` / `openrouter` / `anthropic` | 開発は `mock`。本番で未設定ならエラー |
-| `RECEIPT_MODEL` | 例 `google/gemini-3.1-flash-lite`（openrouter）、`claude-haiku-4-5`（anthropic） | 左の例 |
-| `RECEIPT_PROVIDER_ORDER` | OpenRouter で固定する提供元（カンマ区切り） | `google-vertex` |
+| `RECEIPT_MODEL` | 例 `anthropic/claude-haiku-5.5`（openrouter）、`claude-haiku-5-5`（anthropic） | 左の例 |
+| `RECEIPT_PROVIDER_ORDER` | OpenRouter で固定する提供元（カンマ区切り） | `anthropic` |
 | `OPENROUTER_API_KEY` / `ANTHROPIC_API_KEY` | 提供元の鍵。**公開版専用のキーに使用額の上限を付けて使う** | なし |
 | `RECEIPT_QUOTA_USER_DAY` / `_USER_MONTH` / `_GLOBAL_MONTH` | 読み取りの上限 | 5 / 30 / 3000 |
 | `CRON_SECRET` | 毎日の定期実行（`/api/cron/fixed-costs`、`vercel.json`）の鍵。未設定なら定期実行は 401 で動かない | なし |
