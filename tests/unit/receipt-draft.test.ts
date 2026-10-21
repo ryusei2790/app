@@ -6,12 +6,16 @@
  * - P3 明細の合計と合計金額が合わない → 警告
  * - P4 大きすぎる・画像以外・壊れた画像は拒否／送信前の縮小サイズ
  * - P7 外貨・日本語以外は「対象外」
+ * - P11 明細の金額ずれ対策（外税の按分・数量×単価の照合）と、カテゴリごとの仕分け（mywork#229）
  */
 
 import { describe, expect, it } from "vitest";
 import sharp from "sharp";
 import normal from "../fixtures/receipts/normal.json";
-import { toDraft } from "@/lib/receipt/schema";
+import exclusiveTax from "../fixtures/receipts/exclusive-tax.json";
+import { allocateTax, toDraft } from "@/lib/receipt/schema";
+import { splitByCategory } from "@/lib/receipt/split";
+import { matchCategoryId } from "@/lib/receipt/categories";
 import { MAX_RECEIPT_BYTES, validateReceiptImage } from "@/lib/receipt/image";
 import { computeTargetSize } from "@/lib/image/compress";
 
@@ -30,7 +34,9 @@ describe("P1 正常な応答から下書きを作る", () => {
       warnings: [],
     });
     expect(d.items).toHaveLength(3);
-    expect(d.items[0]).toEqual({ name: "おにぎり 鮭", quantity: 1, amount: 160 });
+    expect(d.items[0]).toEqual({
+      name: "おにぎり 鮭", quantity: 1, unitPrice: null, amount: 160, printedAmount: 160, taxRate: 8, category: "食費", unitMismatch: false,
+    });
   });
 
   it("前後に説明文や ```json が付いていても中の JSON を読む", () => {
@@ -138,5 +144,88 @@ describe("P4 送信前の縮小サイズ（ブラウザ側）", () => {
 
   it("小さい画像は拡大しない", () => {
     expect(computeTargetSize(800, 600)).toEqual({ width: 800, height: 600 });
+  });
+});
+
+describe("P11 明細の金額ずれ対策（mywork#229）", () => {
+  it("外税: 税を税率ごとに按分して税込にし、明細の和 = 合計で ok", () => {
+    const d = draftOf(exclusiveTax);
+    expect(d.status).toBe("ok");
+    expect(d.taxAllocated).toBe(true);
+    expect(d.items.reduce((s, i) => s + i.amount, 0)).toBe(1327);
+    // 印字の金額は残す。数量×単価の行は単価ではなく行の金額
+    expect(d.items[1]).toMatchObject({ quantity: 2, unitPrice: 158, printedAmount: 316, unitMismatch: false });
+    // 10% の行は 378 + 38
+    expect(d.items[4].amount).toBe(416);
+  });
+
+  it("按分の端数は税率ごとに最後の行で調整し、税額と1円単位で一致する", () => {
+    const out = allocateTax(
+      [{ amount: 100, taxRate: 8 }, { amount: 100, taxRate: 8 }, { amount: 100, taxRate: 8 }],
+      [{ rate: 8, amount: 24 }]
+    );
+    expect(out.reduce((s, v) => s + v, 0)).toBe(324);
+    expect(out).toEqual([108, 108, 108]);
+    expect(allocateTax([{ amount: 1, taxRate: 8 }, { amount: 2, taxRate: 8 }], [{ rate: 8, amount: 1 }])).toEqual([1, 3]);
+  });
+
+  it("税率が読めない行は、税の行が1つならその税率とみなす", () => {
+    expect(allocateTax([{ amount: 100, taxRate: null }], [{ rate: 10, amount: 10 }])).toEqual([110]);
+  });
+
+  it("内税（tax_mode=inclusive）は按分しない", () => {
+    const d = draftOf({ ...exclusiveTax, tax_mode: "inclusive", total: 1222 });
+    expect(d.taxAllocated).toBe(false);
+    expect(d.items[4].amount).toBe(378);
+    expect(d.status).toBe("ok");
+  });
+
+  it("数量×単価が金額と合わない行に印を付けて確認へ", () => {
+    const items = exclusiveTax.items.map((i, k) => (k === 1 ? { ...i, amount: 158 } : i));
+    const d = draftOf({ ...exclusiveTax, items, total: null });
+    expect(d.items[1].unitMismatch).toBe(true);
+    expect(codes(d)).toContain("item_unit_mismatch");
+    expect(d.warnings.find((w) => w.code === "item_unit_mismatch")!.message).toMatch(/ヨーグルト/);
+  });
+
+  it("税・単価・カテゴリの欄が無い応答（古い形）も読み、内税・未分類として扱う", () => {
+    const d = draftOf({
+      ...normal,
+      tax_mode: undefined,
+      tax_lines: undefined,
+      items: normal.items.map(({ name, quantity, amount }) => ({ name, quantity, amount })),
+    });
+    expect(d.status).toBe("ok");
+    expect(d.items[0]).toMatchObject({ category: null, taxRate: null, unitPrice: null, amount: 160 });
+  });
+});
+
+describe("P11 カテゴリごとの仕分け（mywork#229）", () => {
+  it("カテゴリごとに足し、大きい順。値引きは同じカテゴリから引かれる", () => {
+    expect(splitByCategory([
+      { amount: 500, categoryId: "food" }, { amount: -50, categoryId: "food" }, { amount: 300, categoryId: "daily" },
+    ], 750)).toEqual([{ categoryId: "food", amount: 450 }, { categoryId: "daily", amount: 300 }]);
+  });
+
+  it("明細の和と合計の差は、いちばん大きいカテゴリで吸収する（取引の和 = 合計）", () => {
+    const parts = splitByCategory([{ amount: 500, categoryId: "food" }, { amount: 300, categoryId: "daily" }], 810);
+    expect(parts).toEqual([{ categoryId: "food", amount: 510 }, { categoryId: "daily", amount: 300 }]);
+  });
+
+  it("0円以下になったカテゴリは先頭にまとめる", () => {
+    const parts = splitByCategory([{ amount: 500, categoryId: "food" }, { amount: -20, categoryId: "daily" }], 480);
+    expect(parts).toEqual([{ categoryId: "food", amount: 480 }]);
+  });
+
+  it("カテゴリが1つなら合計で1件", () => {
+    expect(splitByCategory([{ amount: 100, categoryId: "food" }], 120)).toEqual([{ categoryId: "food", amount: 120 }]);
+  });
+
+  it("AI のカテゴリを利用者のカテゴリに名前で当てはめる（外食費は既定の「外食」にも当たる）", () => {
+    const cats = [{ id: "1", name: "食費" }, { id: "2", name: "外食" }, { id: "3", name: "日用品" }];
+    expect(matchCategoryId("外食費", cats)).toBe("2");
+    expect(matchCategoryId("日用品", cats)).toBe("3");
+    expect(matchCategoryId("その他", cats)).toBeNull();
+    expect(matchCategoryId(null, cats)).toBeNull();
   });
 });

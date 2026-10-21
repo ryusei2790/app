@@ -124,6 +124,54 @@ describe("P1・P8 読み取りは下書きを返すだけで、保存しない",
     expect(rc[0].items).toHaveLength(3);
   });
 
+  it("明細にカテゴリが付いていれば、カテゴリごとに取引を分けて保存する（和 = 合計、mywork#229）", async () => {
+    asA();
+    const cats = await adminSql<{ id: string; name: string }>(
+      "SELECT id, name FROM categories WHERE user_id IS NULL AND name IN ('食費','日用品')"
+    );
+    const food = cats.find((c) => c.name === "食費")!.id;
+    const daily = cats.find((c) => c.name === "日用品")!.id;
+    const res = await receipts.POST(jsonRequest("POST", "/api/v1/receipts", {
+      account_id: aAccount,
+      transaction_date: "2026-10-07",
+      total: 1327,
+      merchant: "スーパーみどり",
+      items: [
+        { name: "牛乳", quantity: null, amount: 214, category_id: food },
+        { name: "ヨーグルト", quantity: 2, amount: 341, category_id: food },
+        { name: "割引", quantity: null, amount: -54, category_id: food },
+        { name: "食パン", quantity: null, amount: 410, category_id: food },
+        { name: "洗剤", quantity: null, amount: 416, category_id: daily },
+      ],
+    }));
+    expect(res.status).toBe(201);
+    const { data } = await readJson(res);
+    expect(data.transactions).toHaveLength(2);
+    const rows = await adminSql<{ id: string; amount: string; category_id: string }>(
+      "SELECT id, amount, category_id FROM transactions WHERE id = ANY($1::uuid[]) ORDER BY amount DESC",
+      [data.transactions.map((t: { id: string }) => t.id)]
+    );
+    expect(rows.map((r) => [r.category_id, Number(r.amount)])).toEqual([[food, 911], [daily, 416]]);
+    // レシート情報は大きい方の取引にぶら下がり、明細のカテゴリも残る
+    const rc = await adminSql<{ transaction_id: string; items: { category_id: string }[] }>(
+      "SELECT transaction_id, items FROM receipts WHERE transaction_id = ANY($1::uuid[])", [rows.map((r) => r.id)]
+    );
+    expect(rc).toHaveLength(1);
+    expect(rc[0].transaction_id).toBe(rows[0].id);
+    expect(rc[0].items[4].category_id).toBe(daily);
+  });
+
+  it("明細のカテゴリに他人のカテゴリ・不正な ID があれば 404 で何も作らない", async () => {
+    asA();
+    const before = await txCount(A.id);
+    const res = await receipts.POST(jsonRequest("POST", "/x", {
+      account_id: aAccount, transaction_date: "2026-10-07", total: 300, merchant: "x",
+      items: [{ name: "a", quantity: null, amount: 200, category_id: "00000000-0000-4000-8000-000000000000" }, { name: "b", quantity: null, amount: 100, category_id: null }],
+    }));
+    expect(res.status).toBe(404);
+    expect(await txCount(A.id)).toBe(before);
+  });
+
   it.each([
     ["金額が0", { total: 0 }],
     ["日付が不正", { transaction_date: "2026-13-01" }],

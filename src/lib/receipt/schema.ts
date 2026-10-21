@@ -14,6 +14,7 @@
 import { z } from "zod";
 import { parseDateOnly } from "@/lib/validation/transaction";
 import { addDays } from "@/lib/fixed-costs/schedule";
+import { RECEIPT_CATEGORIES, type ReceiptCategory } from "./categories";
 
 /** AI に返してほしい JSON の形（prompt.ts の指示と、Anthropic の構造化出力にも使う） */
 export const ReceiptAiResultSchema = z.object({
@@ -23,16 +24,40 @@ export const ReceiptAiResultSchema = z.object({
   merchant: z.string().nullable(),
   purchased_at: z.string().nullable(),
   total: z.number().nullable(),
+  tax_mode: z.enum(["inclusive", "exclusive", "unknown"]),
+  tax_lines: z.array(z.object({ rate: z.number(), amount: z.number() })),
   items: z.array(
     z.object({
       name: z.string(),
       quantity: z.number().nullable(),
+      unit_price: z.number().nullable(),
       amount: z.number(),
+      tax_rate: z.number().nullable(),
+      category: z.enum(RECEIPT_CATEGORIES),
     })
   ),
 });
 
 export type ReceiptAiResult = z.infer<typeof ReceiptAiResultSchema>;
+
+/**
+ * 受け取るときの形。AI には上の形を必ず返させるが、提供元によっては欄が欠けるので、
+ * 税・単価・カテゴリの欄は無くても読む（欠けたら「内税扱い」「未分類」）。
+ */
+const ReceiptAiInputSchema = ReceiptAiResultSchema.extend({
+  tax_mode: ReceiptAiResultSchema.shape.tax_mode.catch("unknown"),
+  tax_lines: ReceiptAiResultSchema.shape.tax_lines.catch([]),
+  items: z.array(
+    z.object({
+      name: z.string(),
+      quantity: z.number().nullable(),
+      unit_price: z.number().nullable().catch(null),
+      amount: z.number(),
+      tax_rate: z.number().nullable().catch(null),
+      category: z.enum(RECEIPT_CATEGORIES).nullable().catch(null),
+    })
+  ),
+});
 
 export type WarningCode =
   | "ai_invalid"
@@ -42,6 +67,7 @@ export type WarningCode =
   | "total_not_positive"
   | "date_out_of_range"
   | "items_total_mismatch"
+  | "item_unit_mismatch"
   | "not_receipt"
   | "foreign_currency"
   | "non_japanese";
@@ -54,7 +80,15 @@ export interface DraftWarning {
 export interface DraftItem {
   name: string;
   quantity: number | null;
+  unitPrice: number | null;
+  /** 税込の金額（内税ならレシートの印字どおり、外税なら税を按分して足した額）。集計・仕分けはこの額 */
   amount: number;
+  /** レシートに印字された金額（外税なら税抜） */
+  printedAmount: number;
+  taxRate: number | null;
+  category: ReceiptCategory | null;
+  /** 数量×単価が金額と合わない行（読み違いの疑い） */
+  unitMismatch: boolean;
 }
 
 export interface ReceiptDraft {
@@ -62,6 +96,8 @@ export interface ReceiptDraft {
   merchant: string | null;
   date: string | null;
   total: number | null;
+  /** 外税のレシートで、明細に税を按分したか */
+  taxAllocated: boolean;
   items: DraftItem[];
   warnings: DraftWarning[];
 }
@@ -83,9 +119,35 @@ const empty = (warnings: DraftWarning[], status: ReceiptDraft["status"]): Receip
   merchant: null,
   date: null,
   total: null,
+  taxAllocated: false,
   items: [],
   warnings,
 });
+
+/**
+ * 外税のレシート: 税率ごとの税額を、その税率の明細に金額の比で按分して税込額にする。
+ * 端数はその税率の最後の行で調整する（税率ごとの和が税額と1円単位で一致する）。
+ * 税率が読めない行は、税の行が1つだけならその税率とみなす。当てはめられない税額は按分しない。
+ */
+export function allocateTax(
+  items: { amount: number; taxRate: number | null }[],
+  taxLines: { rate: number; amount: number }[]
+): number[] {
+  const out = items.map((i) => i.amount);
+  const onlyRate = taxLines.length === 1 ? taxLines[0].rate : null;
+  for (const line of taxLines) {
+    const idx = items.map((_, k) => k).filter((k) => (items[k].taxRate ?? onlyRate) === line.rate);
+    const base = idx.reduce((s, k) => s + items[k].amount, 0);
+    if (idx.length === 0 || base <= 0) continue;
+    let given = 0;
+    idx.forEach((k, n) => {
+      const share = n === idx.length - 1 ? line.amount - given : Math.floor((line.amount * items[k].amount) / base);
+      given += share;
+      out[k] += share;
+    });
+  }
+  return out;
+}
 
 /**
  * AI の応答（文字列）→ 下書き。
@@ -95,9 +157,9 @@ export function toDraft(raw: string, today: string): ReceiptDraft {
   // 1. JSON として読めて、形が合っているか
   let parsed: ReceiptAiResult;
   try {
-    const r = ReceiptAiResultSchema.safeParse(extractJson(raw));
+    const r = ReceiptAiInputSchema.safeParse(extractJson(raw));
     if (!r.success) throw new Error("形が違う");
-    parsed = r.data;
+    parsed = r.data as ReceiptAiResult;
   } catch {
     return empty([{ code: "ai_invalid", message: "読み取り結果を解釈できませんでした。内容を入力してください。" }], "needs_review");
   }
@@ -139,7 +201,31 @@ export function toDraft(raw: string, today: string): ReceiptDraft {
     total = parsed.total;
   }
 
-  const items: DraftItem[] = parsed.items.map((i) => ({ name: i.name, quantity: i.quantity, amount: i.amount }));
+  // 外税なら、税の行を明細に按分して税込にする（明細の和＋税額 = 合計 で照合できるように）
+  const taxLines = parsed.tax_lines.filter((t) => Number.isInteger(t.amount) && t.amount > 0);
+  const taxAllocated = parsed.tax_mode === "exclusive" && taxLines.length > 0;
+  const withTax = taxAllocated
+    ? allocateTax(parsed.items.map((i) => ({ amount: i.amount, taxRate: i.tax_rate })), taxLines)
+    : parsed.items.map((i) => i.amount);
+
+  const items: DraftItem[] = parsed.items.map((i, k) => ({
+    name: i.name,
+    quantity: i.quantity,
+    unitPrice: i.unit_price,
+    amount: withTax[k],
+    printedAmount: i.amount,
+    taxRate: i.tax_rate,
+    category: i.category,
+    unitMismatch: i.quantity !== null && i.unit_price !== null && i.amount > 0 && i.quantity * i.unit_price !== i.amount,
+  }));
+
+  const odd = items.filter((i) => i.unitMismatch);
+  if (odd.length > 0) {
+    warnings.push({
+      code: "item_unit_mismatch",
+      message: `数量×単価と金額が合わない明細があります（${odd.map((i) => i.name).join("、")}）。確認してください。`,
+    });
+  }
 
   // 4. 明細の和と合計の照合（P3）。明細が無いときは照合しない
   if (total !== null && items.length > 0) {
@@ -152,5 +238,5 @@ export function toDraft(raw: string, today: string): ReceiptDraft {
     }
   }
 
-  return { status: warnings.length > 0 ? "needs_review" : "ok", merchant, date, total, items, warnings };
+  return { status: warnings.length > 0 ? "needs_review" : "ok", merchant, date, total, taxAllocated, items, warnings };
 }
