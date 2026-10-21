@@ -7,6 +7,7 @@
 
 "use client";
 
+import Link from "next/link";
 import { useState, useCallback, useEffect } from "react";
 import type { Account, Category } from "@/types/database";
 import { DataFlowTable } from "./DataFlowTable";
@@ -156,7 +157,12 @@ export function SettingsView() {
 
   return (
     <div className="p-4 space-y-6 sm:p-6">
-      <h2 className="text-xl font-bold text-gray-900">設定</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold text-gray-900">設定</h2>
+        <Link href="/requests" className="text-sm text-blue-600 underline">
+          📝 送った要望
+        </Link>
+      </div>
 
       {/* タブ */}
       {/* スマホ幅（375px）では4つが1行に入らず、横スクロールだと「データの流れ」が隠れるので 2×2 に並べる */}

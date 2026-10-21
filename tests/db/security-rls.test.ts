@@ -21,7 +21,7 @@ import {
 /** アプリが使う表（public スキーマ）。新しい表を足したらここにも足す */
 const APP_TABLES = [
   "profiles", "accounts", "categories", "fixed_costs", "csv_imports", "transactions", "receipt_parse_logs", "receipts",
-  "budget_frames", "budget_rules",
+  "budget_frames", "budget_rules", "feature_requests",
 ];
 
 let A: TestUser;
@@ -160,6 +160,29 @@ describe("S3 他人の口座・カテゴリを自分の取引に使えない（D
       type: "expense", transaction_date: "2026-10-12", source: "manual",
     });
     expect(error).toBeNull();
+  });
+});
+
+describe("S6 機能の要望（feature_requests、mywork#573 第2弾）", () => {
+  it("自分の要望は受付で作れて読める。他人の要望は見えない", async () => {
+    const made = await A.client.from("feature_requests").insert({ user_id: A.id, text: "家族で共有したい" }).select("*");
+    expect(made.error).toBeNull();
+    expect(made.data![0].status).toBe("received");
+    const own = await A.client.from("feature_requests").select("*").eq("user_id", A.id);
+    expect(own.data!.length).toBeGreaterThan(0);
+    const other = await B.client.from("feature_requests").select("*").eq("user_id", A.id);
+    expect(other.data).toEqual([]);
+  });
+  it("本人は状態を「完了」で作れない・あとから書き換えられない・他人の名前で作れない", async () => {
+    const done = await A.client.from("feature_requests").insert({ user_id: A.id, text: "x", status: "done" });
+    expect(done.error).not.toBeNull();
+    const [row] = await adminSql<{ id: string }>("SELECT id FROM feature_requests WHERE user_id = $1 LIMIT 1", [A.id]);
+    const upd = await A.client.from("feature_requests").update({ status: "done" }).eq("id", row.id).select("*");
+    expect(upd.data ?? []).toEqual([]);
+    const [after] = await adminSql<{ status: string }>("SELECT status FROM feature_requests WHERE id = $1", [row.id]);
+    expect(after.status).toBe("received");
+    const spoof = await B.client.from("feature_requests").insert({ user_id: A.id, text: "なりすまし" });
+    expect(spoof.error).not.toBeNull();
   });
 });
 

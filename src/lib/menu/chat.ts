@@ -5,11 +5,12 @@
  *
  * - tool は並びを変えるものだけ（applyTool を通るので、カタログに無い id・固定の機能は拒まれる）
  * - 家計簿のデータ（金額など）は AI に渡さない。会話は保存しない（ブラウザのメモリだけ）
- * - 無い機能の要望（request_feature）は第2弾。今は「まだありません」と答えさせる
+ * - 無い機能の要望（request_feature）は本人の確認を取ってから要望文だけ保存する（1回の送信で1件まで。第2弾）
  */
 
 import Anthropic from "@anthropic-ai/sdk";
 import { toAnthropicModelId } from "@/lib/receipt/providers";
+import { cleanRequestText } from "@/lib/requests/status";
 import { applyTool, describeCatalog, type LayoutItem } from "./layout";
 
 export interface ChatMessage {
@@ -59,6 +60,12 @@ const TOOLS: Anthropic.Tool[] = [
     description: "マイメニューの並びを変える。ids にマイメニューの機能 id を全部、新しい順に入れる",
     input_schema: { type: "object", properties: { ids: { type: "array", items: { type: "string" } } }, required: ["ids"] },
   },
+  {
+    name: "request_feature",
+    description:
+      "一覧に無い機能の要望を運営に送る。本人が「送って」と同意したときだけ使う。text はどんな機能が欲しいかを1〜2文（300字以内）にまとめる",
+    input_schema: { type: "object", properties: { text: { type: "string" } }, required: ["text"] },
+  },
 ];
 
 function systemPrompt(layout: LayoutItem[], isOwner: boolean): string {
@@ -66,7 +73,8 @@ function systemPrompt(layout: LayoutItem[], isOwner: boolean): string {
     "あなたは家計簿アプリ「カレンダー家計簿」のメニュー係です。日本語で短く、やさしく答えます。",
     "メニューは「初期画面」（固定。変えられない）と「マイメニュー」（本人が選んだ機能）に分かれています。",
     "できること: 下の一覧にある機能の説明、マイメニューへの追加・外す・並べ替え・アイコン（絵文字）と表示名の変更。tool を使って実行します。",
-    "一覧に無い機能は作れません。「まだその機能はありません」と正直に伝えます（id を作り出さない）。",
+    "一覧に無い機能は作れません。「まだその機能はありません」と正直に伝え、運営に要望として送るか聞きます（id を作り出さない）。",
+    "本人が「送って」「お願い」など同意したら request_feature で要望を送ります。同意の前には送りません。送った要望は 設定 →「要望」で見られると伝えます。",
     "家計簿の金額・取引の中身は見られません。聞かれたら該当する画面を案内します。",
     "どれを指すか迷うときは、実行せずに聞き返します。実行したら、どこに何をしたかを1〜2文で伝えます。",
     "",
@@ -115,9 +123,12 @@ export async function runChat(opts: {
   isOwner: boolean;
   create: CreateMessage;
   model?: string;
-}): Promise<{ reply: string; layout: LayoutItem[]; changes: ChatChange[] }> {
+  /** 要望を保存する口（route が DB に書く）。無ければ要望は受け付けない */
+  saveRequest?: (text: string) => Promise<void>;
+}): Promise<{ reply: string; layout: LayoutItem[]; changes: ChatChange[]; requested: boolean }> {
   let layout = opts.layout;
   const changes: ChatChange[] = [];
+  let requested = false;
   const messages: Anthropic.MessageParam[] = opts.history.map((m) => ({ role: m.role, content: m.content }));
 
   for (let turn = 0; turn < MAX_TURNS; turn++) {
@@ -135,18 +146,35 @@ export async function runChat(opts: {
       .join("\n")
       .trim();
     if (res.stop_reason !== "tool_use" || uses.length === 0) {
-      return { reply: text || "すみません、うまく答えられませんでした。", layout, changes };
+      return { reply: text || "すみません、うまく答えられませんでした。", layout, changes, requested };
     }
     messages.push({ role: "assistant", content: res.content });
-    const results: Anthropic.ToolResultBlockParam[] = uses.map((u) => {
+    const results: Anthropic.ToolResultBlockParam[] = [];
+    for (const u of uses) {
+      if (u.name === "request_feature") {
+        const r = await sendRequest((u.input ?? {}) as Record<string, unknown>);
+        results.push({ type: "tool_result", tool_use_id: u.id, content: r.message, is_error: !r.ok });
+        continue;
+      }
       const r = applyTool(layout, u.name, (u.input ?? {}) as Record<string, unknown>, { isOwner: opts.isOwner });
       if (r.ok) {
         layout = r.layout;
         changes.push({ message: r.message });
       }
-      return { type: "tool_result", tool_use_id: u.id, content: r.message, is_error: !r.ok };
-    });
+      results.push({ type: "tool_result", tool_use_id: u.id, content: r.message, is_error: !r.ok });
+    }
     messages.push({ role: "user", content: results });
   }
-  return { reply: "操作が多すぎたので途中で止めました。もう一度、1つずつ頼んでください。", layout, changes };
+  return { reply: "操作が多すぎたので途中で止めました。もう一度、1つずつ頼んでください。", layout, changes, requested };
+
+  async function sendRequest(input: Record<string, unknown>): Promise<{ ok: boolean; message: string }> {
+    if (!opts.saveRequest) return { ok: false, message: "いまは要望を受け付けていません" };
+    if (requested) return { ok: false, message: "要望は1回に1件までです。もう一度送ってください" };
+    const t = cleanRequestText(input.text);
+    if (!t) return { ok: false, message: "要望の文が空か長すぎます（300字まで）" };
+    await opts.saveRequest(t);
+    requested = true;
+    changes.push({ message: `要望を送りました: ${t}` });
+    return { ok: true, message: "要望を保存しました" };
+  }
 }
