@@ -38,6 +38,7 @@ model Profile {
   budgetRules      BudgetRule[]
   userLayouts      UserLayout[]
   chatUsages       ChatUsage[]
+  featureRequests  FeatureRequest[]
 
   @@map("profiles")
 }
@@ -286,4 +287,21 @@ model ChatUsage {
 
   @@id([userId, day])
   @@map("chat_usage")
+}
+
+// -----------------------------------------------------------------------------
+// feature_requests — 無い機能の要望（mywork#573 第2弾）。会話は保存せず要望文だけ
+// -----------------------------------------------------------------------------
+model FeatureRequest {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  text      String
+  status    String   @default("received")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz
+
+  profile Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt(sort: Desc)], map: "feature_requests_user_created_idx")
+  @@map("feature_requests")
 }

@@ -84,3 +84,23 @@ export async function countReceiptUsage(userId: string, now: Date): Promise<Rece
   const r = rows[0];
   return { usedDay: r.used_day, usedMonth: r.used_month, usedGlobal: r.used_global };
 }
+
+// ─── 無い機能の要望（mywork#573 第2弾）。社長の一覧画面だけが使う（route 側で requireOwner） ─────────────
+
+/** 全員の要望（新しい順）。返すのは要望文・状態・日時と、誰のものかを見分ける短い印だけ */
+export async function listAllFeatureRequests() {
+  const rows = await prisma.featureRequest.findMany({ orderBy: { createdAt: "desc" }, take: 200 });
+  return rows.map((r) => ({
+    id: r.id,
+    text: r.text,
+    status: r.status,
+    createdAt: r.createdAt.toISOString(),
+    userTag: r.userId.slice(0, 8),
+  }));
+}
+
+/** 要望の状態を変える。見つからなければ false */
+export async function setFeatureRequestStatus(id: string, status: string): Promise<boolean> {
+  const r = await prisma.featureRequest.updateMany({ where: { id }, data: { status, updatedAt: new Date() } });
+  return r.count > 0;
+}

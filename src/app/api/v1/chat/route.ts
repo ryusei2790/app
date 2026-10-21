@@ -9,6 +9,7 @@ import { isOwner } from "@/lib/features";
 import { buildMenu, visibleLayout } from "@/lib/menu/layout";
 import { cleanHistory, getCreateMessage, runChat } from "@/lib/menu/chat";
 import { bumpChatUsage, loadLayout, saveLayout } from "@/lib/menu/store";
+import { createFeatureRequest } from "@/lib/requests/store";
 
 function dailyLimit(): number {
   const v = Number(process.env.CHAT_QUOTA_USER_DAY);
@@ -36,18 +37,29 @@ export async function POST(request: Request) {
   const before = visibleLayout(await loadLayout(user.id), { isOwner: owner });
   let result;
   try {
-    result = await runChat({ history, layout: before, isOwner: owner, create, model: process.env.CHAT_MODEL });
+    result = await runChat({
+      history,
+      layout: before,
+      isOwner: owner,
+      create,
+      model: process.env.CHAT_MODEL,
+      saveRequest: async (text) => {
+        await createFeatureRequest(user.id, text);
+      },
+    });
   } catch (e) {
     console.error("[chat] AI の呼び出しに失敗", e instanceof Error ? e.message : e);
     return error("AI_UNAVAILABLE", "AI が応答しませんでした。少し待ってからもう一度送ってください。", 503);
   }
-  if (result.changes.length > 0) await saveLayout(user.id, result.layout);
+  // 要望だけのときはマイメニューは変わっていない
+  const layoutChanged = result.changes.length > (result.requested ? 1 : 0);
+  if (layoutChanged) await saveLayout(user.id, result.layout);
 
   return ok({
     reply: result.reply,
     changes: result.changes,
     // 「元に戻す」用に変える前の並びも返す
-    previous: result.changes.length > 0 ? before : null,
+    previous: layoutChanged ? before : null,
     menu: buildMenu(result.layout, { isOwner: owner }),
   });
 }

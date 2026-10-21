@@ -32,6 +32,7 @@ export const CATALOG: Feature[] = [
   { id: "import", label: "CSVインポート", icon: "📥", href: "/import", description: "他の家計簿アプリや銀行の CSV を取り込む。取り込みの取り消しもできる" },
   { id: "fixed-costs", label: "定期の収入・支出", icon: "🔁", href: "/fixed-costs", description: "家賃・給料・サブスクなど毎月決まった収入・支出を登録して自動で記録する" },
   { id: "definitions", label: "数字の定義", icon: "📖", href: DEFINITIONS_PATH, description: "支出・収入などの数字をどう数えているかの説明" },
+  { id: "requests", label: "要望", icon: "📝", href: "/requests", description: "チャットで送った機能の要望と、その状態（受付・対応中・完了・見送り）を見る" },
   { id: "budget", label: "予算台帳", icon: "📒", href: "/budget", ownerOnly: true, description: "費目ごとの月の予算と使った額を比べる" },
 ];
 

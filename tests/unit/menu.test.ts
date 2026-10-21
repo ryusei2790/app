@@ -134,6 +134,35 @@ describe("M3 チャット", () => {
     expect(r.layout).toEqual([]);
     expect(r.changes).toEqual([]);
   });
+  it("要望は saveRequest に渡り、マイメニューは変わらない（1回の送信で1件まで）", async () => {
+    const saved: string[] = [];
+    const { create } = scripted([
+      msg([toolUse("t1", "request_feature", { text: "  家族で  共有したい " }), toolUse("t2", "request_feature", { text: "もう1件" })], "tool_use"),
+      msg([text("要望を送りました")], "end_turn"),
+    ]);
+    const r = await runChat({
+      history: [{ role: "user", content: "送って" }],
+      layout: [],
+      isOwner: false,
+      create,
+      saveRequest: async (t) => {
+        saved.push(t);
+      },
+    });
+    expect(saved).toEqual(["家族で 共有したい"]);
+    expect(r.requested).toBe(true);
+    expect(r.layout).toEqual([]);
+    expect(r.changes).toHaveLength(1);
+  });
+  it("saveRequest が無い・文が空なら要望は保存されない", async () => {
+    const { create } = scripted([
+      msg([toolUse("t1", "request_feature", { text: "" })], "tool_use"),
+      msg([text("すみません")], "end_turn"),
+    ]);
+    const r = await runChat({ history: [{ role: "user", content: "送って" }], layout: [], isOwner: false, create });
+    expect(r.requested).toBe(false);
+    expect(r.changes).toEqual([]);
+  });
   it("会話の形を検査する（user で終わる・長さを絞る）", () => {
     expect(cleanHistory([{ role: "user", content: "a" }])).toEqual([{ role: "user", content: "a" }]);
     expect(cleanHistory([{ role: "assistant", content: "a" }])).toBeNull();
