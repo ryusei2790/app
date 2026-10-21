@@ -1,0 +1,1 @@
+- 2026-10-21 dev-12: NEXT_PUBLIC_GOOGLE_CLIENT_ID を Vercel に追加（本番・Preview）
