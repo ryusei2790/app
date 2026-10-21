@@ -243,6 +243,14 @@ export const DATA_FLOW: readonly DataFlowRow[] = [
     hosts: [],
   },
   {
+    operation: "スプシに書き出す（押したときだけ）",
+    leaves: "取引全件（日付・収支・金額・カテゴリー・メモ）と月次集計",
+    via: "ブラウザ → 本人の Google（許可はこのアプリが作ったファイルだけ＝drive.file）。サーバーは Google と通信しない",
+    storedAt: "本人の Google ドライブに新しいスプレッドシート。Google のトークンは画面のメモリだけで保存しない",
+    externalAi: "—",
+    hosts: ["accounts.google.com", "sheets.googleapis.com", "www.googleapis.com"],
+  },
+  {
     operation: "復元・全削除・取り込みの取り消し",
     leaves: "完全形式のファイルの中身（復元のときだけ）・確認語",
     via: "Vercel の関数 → Supabase（本人の行だけ）",

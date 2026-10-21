@@ -7,6 +7,7 @@
  *   X4 全削除（POST /api/v1/account/delete-all）。確認語が無ければ 422。他人の行と auth のユーザーは残る
  *   X5 取り込みの取り消し（DELETE /api/v1/import/:id）。その取り込みの取引だけ消え、定期・カテゴリーは残る
  *   X6 未ログインは 401。ログに中身を出さない
+ *   G1 スプシ用 JSON（GET /api/v1/export?format=sheet-json、mywork#591）。本人の取引と月次集計だけ
  *   RLS アプリのコードが userId の絞り込みを書き忘れても、他人の行は読めない・消せない（二重の守りの DB 側）
  * データは作り物だけ。本番の DB・設定には繋がない（global-setup が 127.0.0.1 以外を拒む）。
  */
@@ -123,6 +124,7 @@ describe("X6・S14 未ログインは 401", () => {
     as(null);
     expect((await getExport("kakebo-csv")).status).toBe(401);
     expect((await getExport("full-json")).status).toBe(401);
+    expect((await getExport("sheet-json")).status).toBe(401);
     expect((await restore({})).status).toBe(401);
     expect((await deleteAll({ confirm: "削除" })).status).toBe(401);
     expect((await undo("11111111-1111-4111-8111-111111111111")).status).toBe(401);
@@ -164,6 +166,40 @@ describe("X1 家計簿アプリ形式 CSV の書き出し", () => {
     as(me);
     expect((await exportRoute.GET(getRequest("/api/v1/export"))).status).toBe(422);
     expect((await getExport("xlsx")).status).toBe(422);
+  });
+});
+
+describe("G1 スプシ用 JSON の書き出し", () => {
+  it("本人の消していない取引が「取引」に、月ごとの合計が「月次集計」に入り、他人の行は入らない", async () => {
+    const me = await newUser("g1-me");
+    const other = await newUser("g1-other");
+    await seedFull(me.id, "自分");
+    await seedFull(other.id, "他人");
+    as(me);
+
+    const res = await getExport("sheet-json");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    const { data } = await res.json();
+    expect(data.properties.title).toMatch(/^家計簿_\d{4}-\d{2}-\d{2}$/);
+    const cell = (c: { userEnteredValue: { stringValue?: string; numberValue?: number } }) =>
+      c.userEnteredValue.stringValue ?? c.userEnteredValue.numberValue;
+    const [tx, monthly] = data.sheets.map((s: { data: { rowData: { values: never[] }[] }[] }) =>
+      s.data[0].rowData.map((r) => r.values.map(cell))
+    );
+    // X1 と同じ5件（消した1件を除く）。メモは5列目
+    expect(tx.slice(1).map((r: unknown[]) => [r[0], r[1], r[2], r[4]])).toEqual([
+      ["2026-09-03", "支出", 1200, "自分 ランチ"],
+      ["2026-09-05", "収入", 300, "自分 返金"],
+      ["2026-09-10", "支出", 500, "自分 CSV"],
+      ["2026-09-25", "支出", 80000, "自分 家賃"],
+      ["2099-12-25", "支出", 5000, "自分 予定"],
+    ]);
+    expect(monthly.slice(1).map((r: unknown[]) => r.slice(0, 4))).toEqual([
+      ["2026-09", 300, 81700, -81400],
+      ["2099-12", 0, 5000, -5000],
+    ]);
+    expect(JSON.stringify(data)).not.toContain("他人");
   });
 });
 
