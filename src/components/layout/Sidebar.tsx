@@ -1,25 +1,24 @@
 /**
  * @file components/layout/Sidebar.tsx
  * @description サイドバーナビゲーション（Client Component）。
- * usePathname() でアクティブなリンクをハイライトする。
+ * 中身は NavList（固定の5つ＋マイメニュー、mywork#573）。
  * ログアウトボタンも配置する。
  */
 
 "use client";
 
-import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { navItemsFor } from "@/lib/nav";
+import type { NavMenu } from "@/lib/nav";
+import { NavList } from "./NavList";
 
 interface SidebarProps {
   userEmail: string;
-  /** 社長アカウントか（サーバー側の layout で判定して渡す。予算台帳のメニューを出すかどうか） */
-  isOwner?: boolean;
+  /** 固定の5つ＋マイメニュー（サーバー側の layout で本人の分を作って渡す。社長専用は社長にだけ入る） */
+  menu: NavMenu;
 }
 
-export function Sidebar({ userEmail, isOwner = false }: SidebarProps) {
-  const pathname = usePathname();
+export function Sidebar({ userEmail, menu }: SidebarProps) {
   const router = useRouter();
 
   async function handleLogout() {
@@ -38,26 +37,7 @@ export function Sidebar({ userEmail, isOwner = false }: SidebarProps) {
 
       {/* ナビゲーション */}
       <nav className="flex-1 p-3 overflow-y-auto">
-        <ul className="space-y-0.5">
-          {navItemsFor({ isOwner }).map(({ href, label, icon }) => {
-            const isActive = pathname === href || pathname.startsWith(href + "/");
-            return (
-              <li key={href}>
-                <Link
-                  href={href}
-                  className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                    isActive
-                      ? "bg-blue-50 text-blue-700"
-                      : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
-                  }`}
-                >
-                  <span className="text-base">{icon}</span>
-                  {label}
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
+        <NavList menu={menu} />
       </nav>
 
       {/* ログアウト */}
