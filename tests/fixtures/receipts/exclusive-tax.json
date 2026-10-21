@@ -1,0 +1,61 @@
+{
+  "is_receipt": true,
+  "currency": "JPY",
+  "language": "ja",
+  "merchant": "スーパーみどり 南青山店",
+  "purchased_at": "2026-10-07",
+  "total": 1327,
+  "tax_mode": "exclusive",
+  "tax_lines": [
+    {
+      "rate": 8,
+      "amount": 67
+    },
+    {
+      "rate": 10,
+      "amount": 38
+    }
+  ],
+  "items": [
+    {
+      "name": "牛乳 1L",
+      "quantity": null,
+      "unit_price": null,
+      "amount": 198,
+      "tax_rate": 8,
+      "category": "食費"
+    },
+    {
+      "name": "ヨーグルト",
+      "quantity": 2,
+      "unit_price": 158,
+      "amount": 316,
+      "tax_rate": 8,
+      "category": "食費"
+    },
+    {
+      "name": "割引",
+      "quantity": null,
+      "unit_price": null,
+      "amount": -50,
+      "tax_rate": 8,
+      "category": "食費"
+    },
+    {
+      "name": "食パン",
+      "quantity": null,
+      "unit_price": null,
+      "amount": 380,
+      "tax_rate": 8,
+      "category": "食費"
+    },
+    {
+      "name": "台所用洗剤",
+      "quantity": null,
+      "unit_price": null,
+      "amount": 378,
+      "tax_rate": 10,
+      "category": "日用品"
+    }
+  ]
+}

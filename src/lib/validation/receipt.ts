@@ -5,7 +5,7 @@
  * - 合計: 1円以上の整数円（取引と同じ parseYenAmount）
  * - 日付: 実在する YYYY-MM-DD
  * - 店名: 1〜200文字
- * - 明細: 最大200行。各行の金額は整数円（値引きの行は負の数も可）
+ * - 明細: 最大200行。各行の金額は整数円（値引きの行は負の数も可）。category_id は任意（あればカテゴリごとに取引を分ける: mywork#229）
  */
 
 import { MAX_YEN, parseDateOnly, parseYenAmount, type Parsed } from "./transaction";
@@ -14,7 +14,7 @@ export interface ReceiptInput {
   transactionDate: string;
   total: number;
   merchant: string;
-  items: { name: string; quantity: number | null; amount: number }[];
+  items: { name: string; quantity: number | null; amount: number; category_id: string | null }[];
   model: string | null;
 }
 
@@ -36,7 +36,7 @@ export function parseReceiptInput(body: Record<string, unknown>): Parsed<Receipt
   const items: ReceiptInput["items"] = [];
   for (const it of rawItems) {
     if (!it || typeof it !== "object") return fail("明細の形が正しくありません");
-    const { name, quantity, amount } = it as Record<string, unknown>;
+    const { name, quantity, amount, category_id } = it as Record<string, unknown>;
     if (typeof name !== "string" || name.length > 200) return fail("明細の品名が正しくありません");
     if (quantity !== null && quantity !== undefined && (typeof quantity !== "number" || !Number.isFinite(quantity))) {
       return fail("明細の数量が正しくありません");
@@ -44,7 +44,10 @@ export function parseReceiptInput(body: Record<string, unknown>): Parsed<Receipt
     if (typeof amount !== "number" || !Number.isInteger(amount) || Math.abs(amount) > MAX_YEN) {
       return fail("明細の金額は整数の円で指定してください");
     }
-    items.push({ name, quantity: (quantity as number | null | undefined) ?? null, amount });
+    if (category_id !== null && category_id !== undefined && category_id !== "" && typeof category_id !== "string") {
+      return fail("明細のカテゴリが正しくありません");
+    }
+    items.push({ name, quantity: (quantity as number | null | undefined) ?? null, amount, category_id: (category_id as string | undefined) || null });
   }
 
   const model = typeof body.model === "string" && body.model.length <= 100 ? body.model : null;

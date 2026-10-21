@@ -13,10 +13,12 @@ const SAMPLE = {
   merchant: "ファミリーマート 青山店",
   purchased_at: "2026-10-07",
   total: 598,
+  tax_mode: "inclusive",
+  tax_lines: [],
   items: [
-    { name: "おにぎり 鮭", quantity: 1, amount: 160 },
-    { name: "からあげクン", quantity: 1, amount: 238 },
-    { name: "お茶 500ml", quantity: 1, amount: 200 },
+    { name: "おにぎり 鮭", quantity: 1, unit_price: null, amount: 160, tax_rate: 8, category: "食費" },
+    { name: "からあげクン", quantity: 1, unit_price: null, amount: 238, tax_rate: 8, category: "食費" },
+    { name: "お茶 500ml", quantity: 1, unit_price: null, amount: 200, tax_rate: 8, category: "食費" },
   ],
 };
 

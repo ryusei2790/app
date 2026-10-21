@@ -62,6 +62,11 @@ test("W4 レシートを撮る → 確認 → 保存（送る前に縮小され�
   await expect(page.getByLabel("店名")).toHaveValue("ファミリーマート 青山店");
   await expect(page.getByLabel("合計（円）")).toHaveValue("598");
   await page.getByLabel("合計（円）").fill("600");
+  // 明細ごとのカテゴリ（AI の案＝食費）。1行を日用品に直すと、2件に分けて登録される（mywork#229）
+  await expect(page.getByLabel("おにぎり 鮭 のカテゴリ")).toHaveValue(/.+/);
+  await page.getByLabel("お茶 500ml のカテゴリ").selectOption({ label: "日用品" });
+  await expect(page.getByLabel("保存される取引")).toHaveText(/食費 ¥400 \/ 日用品 ¥200 の 2 件/);
+  if (process.env.E2E_SHOT_DIR) await page.screenshot({ path: `${process.env.E2E_SHOT_DIR}/receipt-review.png`, fullPage: true });
   await page.getByRole("button", { name: "保存", exact: true }).click();
   await expect(page.getByText("保存しました")).toBeVisible();
   await expect(page.getByTestId("receipt-remaining")).toHaveCount(0);
