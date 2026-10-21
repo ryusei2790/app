@@ -11,7 +11,7 @@ import { Sidebar } from "@/components/layout/Sidebar";
 import { MobileNav } from "@/components/layout/MobileNav";
 import { OfflineNotice } from "@/components/pwa/OfflineNotice";
 import { FixedCostGenerateTrigger } from "@/components/layout/FixedCostGenerateTrigger";
-import { isOwner } from "@/lib/features";
+import { menuForUser } from "@/lib/menu/menu-for-user";
 
 export default async function DashboardLayout({
   children,
@@ -28,11 +28,14 @@ export default async function DashboardLayout({
     redirect("/login");
   }
 
+  // メニューは固定の5つ＋本人のマイメニュー（mywork#573）。社長専用の機能は社長にだけ入る
+  const menu = await menuForUser(user);
+
   return (
     <div className="flex h-screen flex-col bg-gray-50 md:flex-row">
       {/* 広い画面はサイドバー、スマホ幅は上部バー＋メニュー */}
-      <Sidebar userEmail={user.email ?? ""} isOwner={isOwner(user)} />
-      <MobileNav userEmail={user.email ?? ""} isOwner={isOwner(user)} />
+      <Sidebar userEmail={user.email ?? ""} menu={menu} />
+      <MobileNav userEmail={user.email ?? ""} menu={menu} />
       <main className="min-w-0 flex-1 overflow-y-auto">
         <OfflineNotice />
         {children}

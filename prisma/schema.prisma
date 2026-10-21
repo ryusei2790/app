@@ -36,6 +36,8 @@ model Profile {
   receipts         Receipt[]
   budgetFrames     BudgetFrame[]
   budgetRules      BudgetRule[]
+  userLayouts      UserLayout[]
+  chatUsages       ChatUsage[]
 
   @@map("profiles")
 }
@@ -252,4 +254,36 @@ model BudgetRule {
 
   @@index([userId])
   @@map("budget_rules")
+}
+
+// -----------------------------------------------------------------------------
+// user_layout — マイメニュー（本人がチャットで足した機能。行がある＝表示）mywork#573
+// 固定の5つはコード側（lib/menu/catalog.ts）で決め、ここには入れない
+// -----------------------------------------------------------------------------
+model UserLayout {
+  userId    String   @map("user_id") @db.Uuid
+  featureId String   @map("feature_id")
+  position  Int      @default(0)
+  icon      String?
+  label     String?
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz
+
+  profile Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, featureId])
+  @@map("user_layout")
+}
+
+// -----------------------------------------------------------------------------
+// chat_usage — チャットの1日の回数（上限を数えるためだけ。会話の中身は保存しない）
+// -----------------------------------------------------------------------------
+model ChatUsage {
+  userId String   @map("user_id") @db.Uuid
+  day    DateTime @db.Date
+  count  Int      @default(0)
+
+  profile Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, day])
+  @@map("chat_usage")
 }

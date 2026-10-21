@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from "vitest";
 import { isOwner, parseOwnerIds } from "@/lib/features";
-import { navItemsFor } from "@/lib/nav";
+import { buildMenu } from "@/lib/menu/layout";
 
 const OWNER = "11111111-1111-4111-8111-111111111111";
 const OTHER = "22222222-2222-4222-8222-222222222222";
@@ -36,7 +36,12 @@ describe("S6 社長アカウントの判定", () => {
   });
 
   it("メニューの予算台帳は社長にだけ出る", () => {
-    const hrefs = (owner: boolean) => navItemsFor({ isOwner: owner }).map((i) => i.href);
+    // マイメニューに予算台帳が入っていても、社長以外には出さない（mywork#573）
+    const layout = [{ featureId: "budget", icon: null, label: null }];
+    const hrefs = (owner: boolean) => {
+      const m = buildMenu(layout, { isOwner: owner });
+      return [...m.fixed, ...m.mine].map((i) => i.href);
+    };
     expect(hrefs(false)).not.toContain("/budget");
     expect(hrefs(true)).toContain("/budget");
     expect(hrefs(false)).toContain("/calendar");
