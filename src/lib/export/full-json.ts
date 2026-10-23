@@ -72,6 +72,13 @@ const fixedCostSchema = z.object({
   match_any_amount: z.boolean(),
   // 2026-10-20 追加。それより前の書き出しには無いので円とみなす
   currency: z.enum(["JPY", "USD"]).default("JPY"),
+  // 2026-10-23 追加（サブスクの管理欄、mywork#742 ②）。それより前の書き出しには無いので空とみなす（版は上げない）
+  is_subscription: z.boolean().default(false),
+  manage_url: z.string().regex(/^https?:\/\//i).max(2000).nullable().default(null),
+  cancel_url: z.string().regex(/^https?:\/\//i).max(2000).nullable().default(null),
+  next_renewal_date: date.nullable().default(null),
+  payment_card: z.string().max(50).nullable().default(null),
+  memo: z.string().max(500).nullable().default(null),
   created_at: instant,
 });
 const csvImportSchema = z.object({
@@ -245,6 +252,12 @@ export async function buildBackup(db: UserDb, userId: string, now: Date = new Da
       match_note: f.matchNote,
       match_any_amount: f.matchAnyAmount,
       currency: f.currency as "JPY" | "USD",
+      is_subscription: f.isSubscription,
+      manage_url: f.manageUrl,
+      cancel_url: f.cancelUrl,
+      next_renewal_date: dateOrNull(f.nextRenewalDate),
+      payment_card: f.paymentCard,
+      memo: f.memo,
       created_at: iso(f.createdAt),
     })),
     csv_imports: imports.map((i) => ({
@@ -438,6 +451,12 @@ export async function restoreBackup(db: UserDb, userId: string, backup: FullBack
         matchNote: f.match_note,
         matchAnyAmount: f.match_any_amount,
         currency: f.currency,
+        isSubscription: f.is_subscription,
+        manageUrl: f.manage_url,
+        cancelUrl: f.cancel_url,
+        nextRenewalDate: f.next_renewal_date ? dateOnlyToDb(f.next_renewal_date) : null,
+        paymentCard: f.payment_card,
+        memo: f.memo,
         createdAt: new Date(f.created_at),
       })),
     });

@@ -84,9 +84,8 @@ test("W12 要確認の返金候補を「返金」にすると支出が減る", a
   await expect(page.getByTestId("expense-total")).toHaveText("-¥1,000");
   await expect(page.getByTestId("review-count")).toContainText("1件");
 
-  // メニューから要確認へ（ダッシュボードにも「要確認 N件」のカードがあるので、メニューの中のリンクを選ぶ）
-  await page.getByRole("button", { name: "メニュー" }).click();
-  await page.locator("#mobile-menu").getByRole("link", { name: /要確認/ }).click();
+  // 要確認へ（mywork#573 で要確認は初期メニューから外れ「マイメニュー」に置く機能になったので、URL で開く）
+  await page.goto("/review");
   await page.waitForURL("**/review");
   const candidate = page.getByTestId("refund-candidate").filter({ hasText: "返品" });
   await expect(candidate).toBeVisible();

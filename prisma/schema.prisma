@@ -142,7 +142,14 @@ model FixedCost {
   matchNote        String?   @map("match_note") // メモに含まれる語句。NULL なら見ない
   matchAnyAmount   Boolean   @default(false) @map("match_any_amount") // true なら金額を見ない
   currency         String    @default("JPY") // "JPY" | "USD"。USD は amount がドルで、取引にするときその日のドル円で円に直す
-  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  // サブスクの管理欄（mywork#742 ②）。全部任意。一覧は /subscriptions（lib/subscriptions/list.ts）
+  isSubscription   Boolean   @default(false) @map("is_subscription")
+  manageUrl        String?   @map("manage_url") // 管理ページの URL（http/https のみ）
+  cancelUrl        String?   @map("cancel_url") // 解約・プラン変更の URL（http/https のみ）
+  nextRenewalDate  DateTime? @map("next_renewal_date") @db.Date // 手入力の次回更新日。NULL・過ぎたら支払日から自動
+  paymentCard      String?   @map("payment_card") // 支払いカード（カード会社名・券種の自由記述。番号は持たない）
+  memo             String? // 自由記入のメモ（match_note とは別物）
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
 
   // Relations
   profile      Profile       @relation(fields: [userId], references: [id], onDelete: Cascade)

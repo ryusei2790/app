@@ -95,6 +95,13 @@ export function serializeFixedCost(fc: any) {
     match_note: fc.matchNote ?? null,
     match_any_amount: fc.matchAnyAmount ?? false,
     currency: fc.currency ?? "JPY",
+    // サブスクの管理欄（mywork#742 ②）
+    is_subscription: fc.isSubscription ?? false,
+    manage_url: fc.manageUrl ?? null,
+    cancel_url: fc.cancelUrl ?? null,
+    next_renewal_date: fc.nextRenewalDate instanceof Date ? fc.nextRenewalDate.toISOString().slice(0, 10) : fc.nextRenewalDate ?? null,
+    payment_card: fc.paymentCard ?? null,
+    memo: fc.memo ?? null,
     created_at: fc.createdAt instanceof Date
       ? fc.createdAt.toISOString()
       : String(fc.createdAt),
