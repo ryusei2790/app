@@ -1,7 +1,7 @@
 /**
  * @file tests/e2e/fixed-income.spec.ts
  * @description W9（mywork#229 固定の収入・支出）。スマホ幅（375px）で
- * メニュー「定期の収入・支出」→ 仕送り（条件付き）と給料を登録 → 一覧に「固定として数えた取引」→
+ * 「定期の収入・支出」→ 仕送り（条件付き）と給料を登録 → 一覧に「固定として数えた取引」→
  * ダッシュボードに「固定の収入」と「今月の予定（未確定）」が出るまで。
  */
 
@@ -20,9 +20,8 @@ test("W9 定期の収入を登録すると、過去の取引が固定として�
   });
   expect(tx.status()).toBe(201);
 
-  // メニューの名前で、収入も入る場所だと分かる
-  await page.getByRole("button", { name: "メニュー" }).click();
-  await page.getByRole("link", { name: /定期の収入・支出/ }).click();
+  // 画面の名前で、収入も入る場所だと分かる（mywork#573 で定期は初期メニューから外れたので URL で開く）
+  await page.goto("/fixed-costs");
   await expect(page.getByRole("heading", { name: "定期の収入・支出" })).toBeVisible();
 
   // 仕送り: メモに「仕送り」があれば固定として数える
