@@ -3,11 +3,12 @@
  * @description 定期支出・定期収入の一覧取得（GET）・登録（POST）エンドポイント（テスト一覧 C）。
  * DB には withUserDb（RLS が効く）経由でだけ触る。口座・カテゴリは自分のものだけ使える（S3）。
  * 件数の上限は設けない（R1）。周期は毎週・隔週・毎月・毎年、種別は支出・収入（R2・R4）。
+ * サブスクの管理欄（is_subscription・管理/解約 URL・次回更新日・支払いカード・メモ、mywork#742 ②）も同じ1件に持つ。
  */
 
 import { withUserDb } from "@/lib/db";
 import { checkRefs, normalizeCategoryId } from "@/lib/ownership";
-import { parseFixedCostInput, type FixedCostFields } from "@/lib/validation/fixed-cost";
+import { parseFixedCostInput, type FixedCostFields, type SubscriptionFields } from "@/lib/validation/fixed-cost";
 import { dateOnlyToDb, todayJst } from "@/lib/date/jst";
 import { monthlyEquivalent, type Cycle } from "@/lib/fixed-costs/schedule";
 import { conditionFromRecord, nextDueDate, txFromRecord } from "@/lib/fixed-costs/expand";
@@ -93,7 +94,7 @@ export async function POST(request: Request) {
   if (!body.account_id) return error("VALIDATION_ERROR", "account_id は必須です", 422);
   const input = parseFixedCostInput(body, "create", todayJst());
   if (!input.ok) return error("VALIDATION_ERROR", input.message, 422);
-  const f = input.value as FixedCostFields;
+  const f = input.value as FixedCostFields & SubscriptionFields;
   const categoryId = normalizeCategoryId(body.category_id) ?? null;
 
   return withUserDb(user.id, async (db) => {
@@ -118,6 +119,12 @@ export async function POST(request: Request) {
         matchNote: f.matchNote,
         matchAnyAmount: f.matchAnyAmount,
         currency: f.currency,
+        isSubscription: f.isSubscription,
+        manageUrl: f.manageUrl,
+        cancelUrl: f.cancelUrl,
+        nextRenewalDate: f.nextRenewalDate ? dateOnlyToDb(f.nextRenewalDate) : null,
+        paymentCard: f.paymentCard,
+        memo: f.memo,
       },
       include: INCLUDE,
     });

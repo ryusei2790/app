@@ -7,11 +7,14 @@
  * 追加・編集の後は /api/v1/fixed-costs/generate を呼び、今日までの分をすぐ取引にする
  * （毎日の定期実行を待たずにカレンダーへ出すため）。
  * スマホ幅（375px）で1列、広い画面で2列のフォームにする。
+ * 「サブスク」にチェックすると管理欄（管理/解約 URL・次回更新日・支払いカード・メモ）が開く（mywork#742 ②）。
+ * サブスク一覧（/subscriptions）からは ?edit=<id>（編集を開く）・?add=subscription（サブスクとして追加）で来る。
  */
 
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useAccounts } from "@/hooks/useAccounts";
 import { useCategories } from "@/hooks/useCategories";
 
@@ -36,6 +39,12 @@ interface FixedCost {
   amount_yen: number | null;
   matched_count: number;
   next_date: string | null;
+  is_subscription: boolean;
+  manage_url: string | null;
+  cancel_url: string | null;
+  next_renewal_date: string | null;
+  payment_card: string | null;
+  memo: string | null;
   account_id: string;
   category_id: string | null;
   account: { id: string; name: string } | null;
@@ -108,6 +117,12 @@ const emptyForm = () => ({
   match_note: "",
   match_any_amount: false,
   currency: "JPY" as "JPY" | "USD",
+  is_subscription: false,
+  manage_url: "",
+  cancel_url: "",
+  next_renewal_date: "",
+  payment_card: "",
+  memo: "",
 });
 
 type FormState = ReturnType<typeof emptyForm>;
@@ -171,9 +186,40 @@ export function FixedCostView() {
       match_note: fc.match_note ?? "",
       match_any_amount: fc.match_any_amount,
       currency: fc.currency,
+      is_subscription: fc.is_subscription,
+      manage_url: fc.manage_url ?? "",
+      cancel_url: fc.cancel_url ?? "",
+      next_renewal_date: fc.next_renewal_date ?? "",
+      payment_card: fc.payment_card ?? "",
+      memo: fc.memo ?? "",
     });
     setShowForm(true);
   }
+
+  // サブスク一覧から来たとき（?edit=<id> / ?add=subscription）、読み込み後に1回だけフォームを開く。
+  // useSearchParams は Suspense の境界が要るので、ここでは location を直接読む（この画面は Client だけで描く）
+  const handledQuery = useRef(false);
+  // サブスク一覧から来た編集・追加は、保存・キャンセルしたら一覧へ戻す（本人の通し操作で、戻るのに1手余計だった）
+  const returnToSubs = useRef(false);
+  useEffect(() => {
+    if (loading || handledQuery.current) return;
+    handledQuery.current = true;
+    const q = new URLSearchParams(window.location.search);
+    const target = q.get("edit") && fixedCosts.find((fc) => fc.id === q.get("edit"));
+    // effect の中で同期的に setState しない（一覧の読み込みと同じ流儀）。次の描画でフォームを開く
+    queueMicrotask(() => {
+      if (target) {
+        returnToSubs.current = true;
+        openEdit(target);
+      } else if (q.get("add") === "subscription") {
+        returnToSubs.current = true;
+        setEditingId(null);
+        setNoteTouched(false);
+        setForm({ ...emptyForm(), is_subscription: true });
+        setShowForm(true);
+      }
+    });
+  }, [loading, fixedCosts]);
 
   /** 追加・編集の送信。周期に関係ない項目は送らない（サーバーでも捨てる） */
   async function handleSubmit(e: React.FormEvent) {
@@ -198,6 +244,13 @@ export function FixedCostView() {
       match_note: form.match_note.trim() || null,
       match_any_amount: form.match_any_amount,
       currency: form.currency,
+      // 管理欄。空文字はサーバーで null（欄を消す）になる
+      is_subscription: form.is_subscription,
+      manage_url: form.manage_url,
+      cancel_url: form.cancel_url,
+      next_renewal_date: form.next_renewal_date,
+      payment_card: form.payment_card,
+      memo: form.memo,
     };
     try {
       const res = await fetch(editingId ? `/api/v1/fixed-costs/${editingId}` : "/api/v1/fixed-costs", {
@@ -213,6 +266,10 @@ export function FixedCostView() {
       setEditingId(null);
       // 今日までの支払日があればすぐ取引にする
       await fetch("/api/v1/fixed-costs/generate", { method: "POST" }).catch(() => undefined);
+      if (returnToSubs.current) {
+        window.location.assign("/subscriptions");
+        return;
+      }
       fetchFixedCosts();
     } catch (e) {
       setError(e instanceof Error ? e.message : "不明なエラー");
@@ -256,6 +313,9 @@ export function FixedCostView() {
         <div>
           <h2 className="text-xl font-bold text-gray-900">定期の収入・支出</h2>
           <p className="text-sm text-gray-500 mt-0.5">給料・仕送り・家賃・サブスクなど。支払日になると自動で収支に追加されます</p>
+          <Link href="/subscriptions" className="mt-1 inline-block text-sm text-blue-600 hover:underline">
+            サブスク一覧 →
+          </Link>
         </div>
         <button
           onClick={openAdd}
@@ -488,10 +548,98 @@ export function FixedCostView() {
             </label>
           </fieldset>
 
+          {/* サブスクの管理欄（チェックしたときだけ開く。家賃・給料の入力は今までと同じ見た目） */}
+          <fieldset className="rounded-lg border border-blue-100 bg-white p-3 space-y-3">
+            <label className="flex min-h-11 items-center gap-2 text-sm font-medium text-gray-800">
+              <input
+                type="checkbox"
+                checked={form.is_subscription}
+                onChange={(e) => setForm({ ...form, is_subscription: e.target.checked })}
+                className="h-5 w-5"
+              />
+              サブスク（サブスク一覧に出す）
+            </label>
+            {form.is_subscription && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="sm:col-span-2">
+                  <label htmlFor="fc-manage-url" className={label}>管理ページの URL</label>
+                  <input
+                    id="fc-manage-url"
+                    type="url"
+                    inputMode="url"
+                    maxLength={2000}
+                    value={form.manage_url}
+                    onChange={(e) => setForm({ ...form, manage_url: e.target.value })}
+                    placeholder="https://…（契約内容・支払い方法を見るページ）"
+                    className={input}
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label htmlFor="fc-cancel-url" className={label}>解約・プラン変更の URL</label>
+                  <input
+                    id="fc-cancel-url"
+                    type="url"
+                    inputMode="url"
+                    maxLength={2000}
+                    value={form.cancel_url}
+                    onChange={(e) => setForm({ ...form, cancel_url: e.target.value })}
+                    placeholder="https://…"
+                    className={input}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="fc-renewal" className={label}>次回更新日（任意）</label>
+                  <input
+                    id="fc-renewal"
+                    type="date"
+                    value={form.next_renewal_date}
+                    onChange={(e) => setForm({ ...form, next_renewal_date: e.target.value })}
+                    className={input}
+                  />
+                  <p className="mt-1 text-xs text-gray-500">空なら支払日から自動。年払い・無料体験の終わりなど、ずれる時だけ入れます</p>
+                </div>
+                <div>
+                  <label htmlFor="fc-card" className={label}>支払いカード</label>
+                  <input
+                    id="fc-card"
+                    type="text"
+                    list="fc-card-options"
+                    maxLength={50}
+                    value={form.payment_card}
+                    onChange={(e) => setForm({ ...form, payment_card: e.target.value })}
+                    placeholder="例: 楽天カード VISA"
+                    className={input}
+                  />
+                  <datalist id="fc-card-options">
+                    {Array.from(new Set(fixedCosts.map((fc) => fc.payment_card).filter((c): c is string => !!c))).map((c) => (
+                      <option key={c} value={c} />
+                    ))}
+                  </datalist>
+                  <p className="mt-1 text-xs text-gray-500">カード番号は入れないでください（カード会社名・券種だけ）</p>
+                </div>
+                <div className="sm:col-span-2">
+                  <label htmlFor="fc-memo" className={label}>メモ（自由記入）</label>
+                  <textarea
+                    id="fc-memo"
+                    rows={2}
+                    maxLength={500}
+                    value={form.memo}
+                    onChange={(e) => setForm({ ...form, memo: e.target.value })}
+                    placeholder="プラン名・家族共有・解約の注意など"
+                    className={input}
+                  />
+                </div>
+              </div>
+            )}
+          </fieldset>
+
           <div className="flex gap-2">
             <button
               type="button"
-              onClick={() => setShowForm(false)}
+              onClick={() => {
+                if (returnToSubs.current) window.location.assign("/subscriptions");
+                else setShowForm(false);
+              }}
               className="flex-1 rounded-lg border border-gray-300 py-2 text-sm text-gray-600 hover:bg-gray-50"
             >
               キャンセル
@@ -533,6 +681,9 @@ export function FixedCostView() {
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-gray-900 truncate">
                       {fc.type === "income" && <span className="mr-1 text-green-600">[収入]</span>}
+                      {fc.is_subscription && (
+                        <span className="mr-1 rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-medium text-purple-700">サブスク</span>
+                      )}
                       {fc.name}
                     </p>
                     <p className="text-xs text-gray-500">

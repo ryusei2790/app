@@ -7,6 +7,8 @@
  *     update … 送られた項目だけを返す。組み合わせの検査は既存の値と合わせてから checkRule で行う
  * - match_note / match_any_amount: 固定の判定の条件（メモの語句・金額を見ないか）。空の語句は null（見ない）
  * - currency: JPY（既定）か USD。USD の amount はドル（小数2桁まで）、JPY は1円単位の整数（checkRule で確かめる）
+ * - サブスクの管理欄（mywork#742 ②）: is_subscription・manage_url・cancel_url・next_renewal_date・payment_card・memo。全部任意で、
+ *     空文字は null（欄を消す）。URL は http/https だけ、支払いカードはカード番号らしき数字（12桁以上）を弾く
  * - checkRule: 周期と billing_day / billing_month / 開始日・終了日の組み合わせを確かめる
  * 失敗時は画面にそのまま出せる日本語のメッセージを返す（取引の入力ルールと同じ形）。
  * 口座・カテゴリが自分のものかは DB が要るので、ここではなく route（lib/ownership.ts）で確かめる。
@@ -36,14 +38,69 @@ export interface FixedCostFields {
   currency: Currency;
 }
 
+/**
+ * サブスクの管理欄（mywork#742 ②）。周期の組み合わせとは関係ないので FixedCostFields と分け、
+ * checkRule は両方を素通しする（既存の呼び出し・テストの形を変えないため）。
+ */
+export interface SubscriptionFields {
+  /** サブスクか（サブスク一覧 /subscriptions に出す） */
+  isSubscription: boolean;
+  /** 管理ページの URL（http/https のみ） */
+  manageUrl: string | null;
+  /** 解約・プラン変更の URL（http/https のみ） */
+  cancelUrl: string | null;
+  /** 手入力の次回更新日。null・過ぎたら支払日から自動（lib/subscriptions/list.ts） */
+  nextRenewalDate: string | null;
+  /** 支払いカード（カード会社名・券種の自由記述。番号は持たない） */
+  paymentCard: string | null;
+  /** 自由記入のメモ（固定の判定に使う match_note とは別物） */
+  memo: string | null;
+}
+
+/** URL・カード・メモの長さの上限（migration 20261023000000 の CHECK と同じ値） */
+export const URL_MAX = 2000;
+export const CARD_MAX = 50;
+export const MEMO_MAX = 500;
+
 const fail = (message: string) => ({ ok: false as const, message });
 
 function isIntIn(v: unknown, min: number, max: number): v is number {
   return typeof v === "number" && Number.isInteger(v) && v >= min && v <= max;
 }
 
+/**
+ * 任意の文字の欄を読む。null・空文字（空白だけ）は null（=欄を消す）、それ以外は前後の空白を落とす。
+ * 戻り値の undefined は「文字ではない」の意味（呼び出し側でメッセージを出す）。
+ */
+function optionalText(v: unknown): string | null | undefined {
+  if (v === null) return null;
+  if (typeof v !== "string") return undefined;
+  const t = v.trim();
+  return t === "" ? null : t;
+}
+
+/**
+ * リンクにしてよい URL か。
+ * なぜ: 一覧で <a href> にするので、javascript: などを入れられると押したときにスクリプトが走る。
+ * 先頭の http(s):// を見たうえで URL として読めるか（空白入りなど壊れた形を弾く）も確かめる。
+ */
+function isWebUrl(v: string): boolean {
+  if (!/^https?:\/\//i.test(v) || v.length > URL_MAX || /\s/.test(v)) return false;
+  try {
+    const u = new URL(v);
+    return u.protocol === "http:" || u.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+/** カード番号らしき数字があるか。「4111 1111 …」のような区切りも、空白・ハイフンを除いて12桁以上続けば番号とみなす */
+function looksLikeCardNumber(v: string): boolean {
+  return /\d{12,}/.test(v.replace(/[\s\-]/g, ""));
+}
+
 /** 周期との組み合わせを確かめ、使わない項目を null にそろえた値を返す */
-export function checkRule(f: FixedCostFields): Parsed<FixedCostFields> {
+export function checkRule<T extends FixedCostFields>(f: T): Parsed<T> {
   const usesDay = f.cycle === "monthly" || f.cycle === "yearly";
   if (usesDay && f.billingDay === null) return fail("毎月・毎年の定期には支払日（billing_day）が必要です");
   if (f.cycle === "yearly" && f.billingMonth === null) return fail("毎年の定期には支払月（billing_month）が必要です");
@@ -69,8 +126,8 @@ export function parseFixedCostInput(
   body: Record<string, unknown>,
   mode: "create" | "update",
   today: string
-): Parsed<Partial<FixedCostFields>> {
-  const out: Partial<FixedCostFields> = {};
+): Parsed<Partial<FixedCostFields & SubscriptionFields>> {
+  const out: Partial<FixedCostFields & SubscriptionFields> = {};
   const has = (k: string) => body[k] !== undefined;
 
   // 1. 項目ごとの形の検査（送られたものだけ）
@@ -144,6 +201,46 @@ export function parseFixedCostInput(
     out.currency = body.currency as Currency;
   }
 
+  // サブスクの管理欄（mywork#742 ②）
+  if (has("is_subscription")) {
+    if (typeof body.is_subscription !== "boolean") return fail("is_subscription は true / false で指定してください");
+    out.isSubscription = body.is_subscription;
+  }
+  for (const [key, field, label] of [
+    ["manage_url", "manageUrl", "管理ページの URL"],
+    ["cancel_url", "cancelUrl", "解約・プラン変更の URL"],
+  ] as const) {
+    if (!has(key)) continue;
+    const t = optionalText(body[key]);
+    if (t === undefined) return fail(`${label}は文字で指定してください`);
+    if (t !== null && !isWebUrl(t)) return fail(`${label}は http:// か https:// で始まる ${URL_MAX}文字までの URL にしてください`);
+    out[field] = t;
+  }
+  if (has("next_renewal_date")) {
+    const t = optionalText(body.next_renewal_date);
+    if (t === undefined) return fail("次回更新日は日付で指定してください");
+    if (t === null) {
+      out.nextRenewalDate = null;
+    } else {
+      const d = parseDateOnly(t);
+      if (!d.ok) return fail(`次回更新日: ${d.message}`);
+      out.nextRenewalDate = d.value;
+    }
+  }
+  if (has("payment_card")) {
+    const t = optionalText(body.payment_card);
+    if (t === undefined) return fail("支払いカードは文字で指定してください");
+    if (t !== null && t.length > CARD_MAX) return fail(`支払いカードは${CARD_MAX}文字までにしてください`);
+    if (t !== null && looksLikeCardNumber(t)) return fail("支払いカードにはカード番号を入れないでください（カード会社名・券種だけ）");
+    out.paymentCard = t;
+  }
+  if (has("memo")) {
+    const t = optionalText(body.memo);
+    if (t === undefined) return fail("メモは文字で指定してください");
+    if (t !== null && t.length > MEMO_MAX) return fail(`メモは${MEMO_MAX}文字までにしてください`);
+    out.memo = t;
+  }
+
   if (mode === "update") return { ok: true, value: out };
 
   // 2. 作成時は既定値を埋めてから組み合わせを確かめる
@@ -160,5 +257,11 @@ export function parseFixedCostInput(
     matchNote: out.matchNote ?? null,
     matchAnyAmount: out.matchAnyAmount ?? false,
     currency: out.currency ?? "JPY",
+    isSubscription: out.isSubscription ?? false,
+    manageUrl: out.manageUrl ?? null,
+    cancelUrl: out.cancelUrl ?? null,
+    nextRenewalDate: out.nextRenewalDate ?? null,
+    paymentCard: out.paymentCard ?? null,
+    memo: out.memo ?? null,
   });
 }
