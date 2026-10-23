@@ -380,3 +380,67 @@ describe("ドル建ての定期（#229 残り②）", () => {
     }
   });
 });
+
+describe("サブスクの管理欄（mywork#742 ②）", () => {
+  it("6項目を登録・取得・更新でき、空にすると NULL に戻る", async () => {
+    const { user, account } = await newUser("sub1");
+    as(user);
+    const r = await createFc({
+      account_id: account, name: "Netflix", amount: 1590, billing_day: 3,
+      is_subscription: true,
+      manage_url: "https://www.netflix.com/account",
+      cancel_url: "https://www.netflix.com/cancelplan",
+      next_renewal_date: addDays(todayJst(), 40),
+      payment_card: "楽天カード VISA",
+      memo: "ベーシック",
+    });
+    expect(r.status).toBe(201);
+    expect(r.body.data).toMatchObject({
+      is_subscription: true,
+      manage_url: "https://www.netflix.com/account",
+      cancel_url: "https://www.netflix.com/cancelplan",
+      next_renewal_date: addDays(todayJst(), 40),
+      payment_card: "楽天カード VISA",
+      memo: "ベーシック",
+    });
+    const id = r.body.data.id;
+
+    const { data } = (await (await fcList.GET()).json()) as { data: Record<string, unknown>[] };
+    expect(data[0]).toMatchObject({ is_subscription: true, payment_card: "楽天カード VISA", next_renewal_date: addDays(todayJst(), 40) });
+
+    // 送らなかった項目は変わらない。空文字は消す
+    const up = await fcOne.PUT(jsonRequest("PUT", "/x", { memo: "", cancel_url: "" }), params(id));
+    expect(up.status).toBe(200);
+    expect((await readJson(up)).data).toMatchObject({
+      memo: null, cancel_url: null, manage_url: "https://www.netflix.com/account", is_subscription: true,
+    });
+  });
+
+  it("javascript: の URL・カード番号は 422 で DB にも入らない", async () => {
+    const { user, account } = await newUser("sub2");
+    as(user);
+    expect((await createFc({ account_id: account, name: "x", amount: 100, billing_day: 1, manage_url: "javascript:alert(1)" })).status).toBe(422);
+    expect((await createFc({ account_id: account, name: "x", amount: 100, billing_day: 1, payment_card: "4111 1111 1111 1111" })).status).toBe(422);
+    // DB の CHECK でも止まる（API を通らない書き込みへの備え）
+    await expect(
+      adminSql(
+        "INSERT INTO fixed_costs (user_id, account_id, name, amount, billing_day, manage_url) VALUES ($1,$2,'x',100,1,'javascript:alert(1)')",
+        [user.id, account]
+      )
+    ).rejects.toThrow();
+  });
+
+  it("既存の定期（管理欄なし）は今までどおり返り、自動記録の結果も変わらない", async () => {
+    const { user, account } = await newUser("sub3");
+    as(user);
+    const today = todayJst();
+    // 管理欄を一切送らない＝今までの定期と同じ登録
+    const plain = await createFc({ account_id: account, name: "家賃", amount: 80000, billing_day: Number(today.slice(8, 10)), start_date: today });
+    expect(plain.status).toBe(201);
+    expect(plain.body.data).toMatchObject({
+      is_subscription: false, manage_url: null, cancel_url: null, next_renewal_date: null, payment_card: null, memo: null,
+    });
+    await expand(user.id, today);
+    expect((await autoTx(user.id)).map((t) => [t.d, Number(t.amount)])).toEqual([[today, 80000]]);
+  });
+});
