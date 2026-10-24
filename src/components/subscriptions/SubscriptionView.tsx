@@ -12,6 +12,7 @@
 "use client";
 
 import Link from "next/link";
+import { HelpLink } from "@/components/help/HelpLink";
 import { useEffect, useState } from "react";
 import { buildSubscriptionList, type SubscriptionRow, type SubscriptionSource } from "@/lib/subscriptions/list";
 
@@ -131,7 +132,7 @@ export function SubscriptionView() {
     <div className="mx-auto max-w-2xl space-y-5 p-4 sm:p-6">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold text-gray-900">サブスク</h2>
+          <h2 className="flex items-center gap-2 text-xl font-bold text-gray-900">サブスク <HelpLink section="fixed" /></h2>
           <p className="mt-0.5 text-sm text-gray-500">次回更新が近い順。管理ページ・解約ページをここから開けます</p>
         </div>
         <Link

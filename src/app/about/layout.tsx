@@ -14,9 +14,14 @@ export default function AboutLayout({ children }: { children: React.ReactNode })
           <Link href="/dashboard" className="text-base font-bold text-gray-900">
             カレンダー家計簿
           </Link>
-          <Link href="/dashboard" className="text-sm text-blue-600 hover:underline">
-            ダッシュボードへ →
-          </Link>
+          <div className="flex gap-4">
+            <Link href="/about/help" className="text-sm text-blue-600 hover:underline">
+              使い方
+            </Link>
+            <Link href="/dashboard" className="text-sm text-blue-600 hover:underline">
+              ダッシュボードへ →
+            </Link>
+          </div>
         </div>
       </header>
       <main className="mx-auto max-w-3xl px-4 py-6">{children}</main>

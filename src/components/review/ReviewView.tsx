@@ -12,6 +12,7 @@
 "use client";
 
 import Link from "next/link";
+import { HelpLink } from "@/components/help/HelpLink";
 import { useEffect, useState } from "react";
 import { useCategories } from "@/hooks/useCategories";
 import { currentMonthKey, shiftMonthKey } from "@/hooks/useDashboardSummary";
@@ -142,6 +143,7 @@ export function ReviewView({ initialMonth }: { initialMonth?: string }) {
         <h1 className="text-lg font-bold text-gray-900 sm:text-xl">
           {y}年{m}月 要確認
         </h1>
+        <HelpLink section="review" />
         <button onClick={() => setMonth(shiftMonthKey(month, 1))} className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm hover:bg-gray-50">
           翌月 →
         </button>
