@@ -100,3 +100,19 @@ test("W12 要確認の返金候補を「返金」にすると支出が減る", a
   await expect(page.getByTestId("expense-total")).toHaveText("-¥700");
   await expect(page.getByTestId("review-count")).toContainText("0件");
 });
+
+test("W13 使い方は未ログインでも読め、画面の「？」から該当の節に飛ぶ（mywork#764 ①）", async ({ page, browser }) => {
+  const anon = await browser.newContext({ viewport: { width: 375, height: 800 } });
+  const p = await anon.newPage();
+  await p.goto("/about/help");
+  await expect(p.getByRole("heading", { name: "使い方", level: 1 })).toBeVisible();
+  await expect(p.locator("#import")).toContainText("CSV");
+  expect(await p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
+  await anon.close();
+
+  const user = await createUser("w13");
+  await login(page, user);
+  await page.goto("/import");
+  await page.getByTestId("help-link").click();
+  await expect(page).toHaveURL(/\/about\/help#import$/);
+});

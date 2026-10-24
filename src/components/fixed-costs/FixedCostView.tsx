@@ -14,6 +14,7 @@
 "use client";
 
 import Link from "next/link";
+import { HelpLink } from "@/components/help/HelpLink";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useAccounts } from "@/hooks/useAccounts";
 import { useCategories } from "@/hooks/useCategories";
@@ -311,7 +312,7 @@ export function FixedCostView() {
       {/* ヘッダー */}
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold text-gray-900">定期の収入・支出</h2>
+          <h2 className="flex items-center gap-2 text-xl font-bold text-gray-900">定期の収入・支出 <HelpLink section="fixed" /></h2>
           <p className="text-sm text-gray-500 mt-0.5">給料・仕送り・家賃・サブスクなど。支払日になると自動で収支に追加されます</p>
           <Link href="/subscriptions" className="mt-1 inline-block text-sm text-blue-600 hover:underline">
             サブスク一覧 →

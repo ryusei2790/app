@@ -8,6 +8,7 @@
 "use client";
 
 import Link from "next/link";
+import { HelpLink } from "@/components/help/HelpLink";
 import { useState, useCallback, useEffect } from "react";
 import type { Account, Category } from "@/types/database";
 import { DataFlowTable } from "./DataFlowTable";
@@ -158,7 +159,7 @@ export function SettingsView() {
   return (
     <div className="p-4 space-y-6 sm:p-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold text-gray-900">設定</h2>
+        <h2 className="flex items-center gap-2 text-xl font-bold text-gray-900">設定 <HelpLink section="setup" /></h2>
         <Link href="/requests" className="text-sm text-blue-600 underline">
           📝 送った要望
         </Link>

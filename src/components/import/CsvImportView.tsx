@@ -12,6 +12,7 @@
 "use client";
 
 import Link from "next/link";
+import { HelpLink } from "@/components/help/HelpLink";
 import { useState, useRef, useCallback } from "react";
 import { useAccounts } from "@/hooks/useAccounts";
 import { decodeCsv } from "@/lib/csv/decode";
@@ -202,7 +203,7 @@ export function CsvImportView({ isOwner = false }: { isOwner?: boolean }) {
 
   return (
     <div className="space-y-6 p-4 sm:p-6">
-      <h2 className="text-xl font-bold text-gray-900">CSVインポート</h2>
+      <h2 className="flex items-center gap-2 text-xl font-bold text-gray-900">CSVインポート <HelpLink section="import" /></h2>
 
       <div className="space-y-5 rounded-xl border border-gray-200 bg-white p-4 sm:p-6">
         {/* ① ファイル */}
