@@ -18,6 +18,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { errorMessage } from "@/lib/errors/api-error";
 
 const GIS_SRC = "https://accounts.google.com/gsi/client";
 const SCOPE = "https://www.googleapis.com/auth/drive.file";
@@ -85,7 +86,7 @@ export function SheetExportButton() {
       if (!g.ok || !sheet?.spreadsheetUrl) throw new Error("スプレッドシートを作れませんでした。もう一度押してください");
       setMsg({ kind: "ok", url: sheet.spreadsheetUrl, title: sheet.properties?.title ?? "スプレッドシート" });
     } catch (e) {
-      setMsg({ kind: "error", text: e instanceof Error ? e.message : "書き出しに失敗しました" });
+      setMsg({ kind: "error", text: errorMessage(e, "書き出しに失敗しました") });
     } finally {
       setBusy(false);
     }

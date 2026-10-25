@@ -18,6 +18,8 @@ import { HelpLink } from "@/components/help/HelpLink";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useAccounts } from "@/hooks/useAccounts";
 import { useCategories } from "@/hooks/useCategories";
+import { apiErrorMessage, errorMessage } from "@/lib/errors/api-error";
+import { ErrorNotice } from "@/components/ui/error-notice";
 
 type Cycle = "weekly" | "biweekly" | "monthly" | "yearly";
 type Kind = "expense" | "income";
@@ -150,13 +152,14 @@ export function FixedCostView() {
     let alive = true;
     fetch("/api/v1/fixed-costs")
       .then(async (res) => {
-        if (!res.ok) throw new Error("定期の収入・支出の取得に失敗しました");
+        if (!res.ok) throw new Error(await apiErrorMessage(res, "定期の収入・支出の取得に失敗しました"));
         const json = await res.json();
         if (!alive) return;
         setFixedCosts(json.data);
+        setError(null);
         setTotals(json.meta);
       })
-      .catch((e) => alive && setError(e instanceof Error ? e.message : "不明なエラー"))
+      .catch((e) => alive && setError(errorMessage(e, "定期の収入・支出の取得に失敗しました")))
       .finally(() => alive && setLoading(false));
     return () => {
       alive = false;
@@ -260,8 +263,7 @@ export function FixedCostView() {
         body: JSON.stringify(body),
       });
       if (!res.ok) {
-        const json = await res.json();
-        throw new Error(json.error?.message ?? "保存に失敗しました");
+        throw new Error(await apiErrorMessage(res, "保存に失敗しました"));
       }
       setShowForm(false);
       setEditingId(null);
@@ -273,7 +275,7 @@ export function FixedCostView() {
       }
       fetchFixedCosts();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "不明なエラー");
+      setError(errorMessage(e, "保存に失敗しました"));
     }
   }
 
@@ -285,10 +287,10 @@ export function FixedCostView() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ is_active: !fc.is_active }),
       });
-      if (!res.ok) throw new Error("更新に失敗しました");
+      if (!res.ok) throw new Error(await apiErrorMessage(res, "更新に失敗しました"));
       fetchFixedCosts();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "不明なエラー");
+      setError(errorMessage(e, "保存に失敗しました"));
     }
   }
 
@@ -297,10 +299,10 @@ export function FixedCostView() {
     if (!confirm(`「${fc.name}」を削除しますか？（これまでの取引は残ります）`)) return;
     try {
       const res = await fetch(`/api/v1/fixed-costs/${fc.id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("削除に失敗しました");
+      if (!res.ok) throw new Error(await apiErrorMessage(res, "削除に失敗しました"));
       fetchFixedCosts();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "不明なエラー");
+      setError(errorMessage(e, "保存に失敗しました"));
     }
   }
 
@@ -349,7 +351,7 @@ export function FixedCostView() {
         </div>
       )}
 
-      {error && <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">{error}</div>}
+      {error && <ErrorNotice message={error} onRetry={fetchFixedCosts} />}
 
       {/* 追加・編集フォーム */}
       {showForm && (

@@ -9,6 +9,7 @@
 import { useState, useEffect, useCallback } from "react";
 import type { TransactionWithRelations } from "@/types/database";
 import type { CreateTransactionRequest } from "@/types/api";
+import { apiErrorMessage, errorMessage } from "@/lib/errors/api-error";
 
 interface UseTransactionsOptions {
   year: number;
@@ -48,12 +49,12 @@ export function useTransactions({
       });
 
       const res = await fetch(`/api/v1/transactions?${params}`);
-      if (!res.ok) throw new Error("収支の取得に失敗しました");
+      if (!res.ok) throw new Error(await apiErrorMessage(res, "収支の取得に失敗しました"));
 
       const json = await res.json();
       setTransactions(json.data);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "不明なエラー");
+      setError(errorMessage(e, "収支の取得に失敗しました"));
     } finally {
       setLoading(false);
     }
@@ -74,13 +75,12 @@ export function useTransactions({
         body: JSON.stringify(data),
       });
       if (!res.ok) {
-        const json = await res.json();
-        throw new Error(json.error?.message ?? "作成に失敗しました");
+        throw new Error(await apiErrorMessage(res, "作成に失敗しました"));
       }
       await fetchTransactions(); // 一覧を再取得
       return true;
     } catch (e) {
-      setError(e instanceof Error ? e.message : "不明なエラー");
+      setError(errorMessage(e, "保存に失敗しました"));
       return false;
     }
   };
@@ -91,11 +91,11 @@ export function useTransactions({
       const res = await fetch(`/api/v1/transactions/${id}`, {
         method: "DELETE",
       });
-      if (!res.ok) throw new Error("削除に失敗しました");
+      if (!res.ok) throw new Error(await apiErrorMessage(res, "削除に失敗しました"));
       await fetchTransactions();
       return true;
     } catch (e) {
-      setError(e instanceof Error ? e.message : "不明なエラー");
+      setError(errorMessage(e, "保存に失敗しました"));
       return false;
     }
   };

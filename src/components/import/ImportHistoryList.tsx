@@ -10,6 +10,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { errorMessage } from "@/lib/errors/api-error";
 
 interface ImportHistory {
   id: string;
@@ -66,7 +67,7 @@ export function ImportHistoryList({ reloadKey = 0, limit = 10, onUndone }: Props
       setReload((n) => n + 1);
       onUndone?.();
     } catch (e) {
-      setMessage({ kind: "error", text: e instanceof Error ? e.message : "取り消しに失敗しました" });
+      setMessage({ kind: "error", text: errorMessage(e, "取り消しに失敗しました") });
     } finally {
       setBusy(null);
     }

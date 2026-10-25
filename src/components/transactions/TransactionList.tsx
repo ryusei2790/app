@@ -18,6 +18,7 @@ import { currentMonthKey, shiftMonthKey, useMonthlySummary } from "@/hooks/useDa
 import { DEFINITIONS_PATH, FOOTNOTES, kindLabel, type TransactionKind } from "@/lib/aggregate/definitions";
 import { TransactionForm } from "./TransactionForm";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ErrorNotice } from "@/components/ui/error-notice";
 
 /** 金額フォーマット */
 function formatAmount(amount: number): string {
@@ -50,7 +51,7 @@ export function TransactionList() {
   const [filterType, setFilterType] = useState<"" | "income" | "expense">("");
   const [showAddDialog, setShowAddDialog] = useState(false);
 
-  const { transactions, loading, error, createTransaction, deleteTransaction } = useTransactions({
+  const { transactions, loading, error, refetch, createTransaction, deleteTransaction } = useTransactions({
     year,
     month: monthNumber,
     ...(filterType ? { type: filterType } : {}),
@@ -144,7 +145,7 @@ export function TransactionList() {
         )}
       </div>
 
-      {error && <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+      {error && <ErrorNotice message={error} onRetry={refetch} />}
 
       {/* 収支テーブル */}
       {loading ? (

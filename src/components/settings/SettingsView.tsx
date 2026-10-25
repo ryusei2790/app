@@ -13,6 +13,7 @@ import { useState, useCallback, useEffect } from "react";
 import type { Account, Category } from "@/types/database";
 import { DataFlowTable } from "./DataFlowTable";
 import { DataPanel } from "./DataPanel";
+import { apiErrorMessage, errorMessage } from "@/lib/errors/api-error";
 
 type Tab = "accounts" | "categories" | "data" | "data-flow";
 const TAB_LABELS: Record<Tab, string> = {
@@ -42,11 +43,11 @@ export function SettingsView() {
     setAccLoading(true);
     try {
       const res = await fetch("/api/v1/accounts");
-      if (!res.ok) throw new Error("口座の取得に失敗しました");
+      if (!res.ok) throw new Error(await apiErrorMessage(res, "口座の取得に失敗しました"));
       const json = await res.json();
       setAccounts(json.data);
     } catch (e) {
-      setAccError(e instanceof Error ? e.message : "不明なエラー");
+      setAccError(errorMessage(e, "不明なエラー"));
     } finally {
       setAccLoading(false);
     }
@@ -65,14 +66,13 @@ export function SettingsView() {
         body: JSON.stringify({ name: accForm.name, type: accForm.type, currency: "JPY" }),
       });
       if (!res.ok) {
-        const json = await res.json();
-        throw new Error(json.error?.message ?? "追加に失敗しました");
+        throw new Error(await apiErrorMessage(res, "追加に失敗しました"));
       }
       setAccForm({ name: "", type: "cash" });
       setShowAccForm(false);
       await fetchAccounts();
     } catch (e) {
-      setAccError(e instanceof Error ? e.message : "不明なエラー");
+      setAccError(errorMessage(e, "不明なエラー"));
     }
   }
 
@@ -81,12 +81,11 @@ export function SettingsView() {
     try {
       const res = await fetch(`/api/v1/accounts/${id}`, { method: "DELETE" });
       if (!res.ok) {
-        const json = await res.json();
-        throw new Error(json.error?.message ?? "削除に失敗しました");
+        throw new Error(await apiErrorMessage(res, "削除に失敗しました"));
       }
       await fetchAccounts();
     } catch (e) {
-      setAccError(e instanceof Error ? e.message : "不明なエラー");
+      setAccError(errorMessage(e, "不明なエラー"));
     }
   }
 
@@ -103,11 +102,11 @@ export function SettingsView() {
     setCatLoading(true);
     try {
       const res = await fetch("/api/v1/categories");
-      if (!res.ok) throw new Error("カテゴリの取得に失敗しました");
+      if (!res.ok) throw new Error(await apiErrorMessage(res, "カテゴリの取得に失敗しました"));
       const json = await res.json();
       setCategories(json.data);
     } catch (e) {
-      setCatError(e instanceof Error ? e.message : "不明なエラー");
+      setCatError(errorMessage(e, "不明なエラー"));
     } finally {
       setCatLoading(false);
     }
@@ -126,14 +125,13 @@ export function SettingsView() {
         body: JSON.stringify({ name: catForm.name, type: catForm.type, color: catForm.color }),
       });
       if (!res.ok) {
-        const json = await res.json();
-        throw new Error(json.error?.message ?? "追加に失敗しました");
+        throw new Error(await apiErrorMessage(res, "追加に失敗しました"));
       }
       setCatForm({ name: "", type: "expense", color: "#4ECDC4" });
       setShowCatForm(false);
       await fetchCategories();
     } catch (e) {
-      setCatError(e instanceof Error ? e.message : "不明なエラー");
+      setCatError(errorMessage(e, "不明なエラー"));
     }
   }
 
@@ -142,12 +140,11 @@ export function SettingsView() {
     try {
       const res = await fetch(`/api/v1/categories/${id}`, { method: "DELETE" });
       if (!res.ok) {
-        const json = await res.json();
-        throw new Error(json.error?.message ?? "削除に失敗しました");
+        throw new Error(await apiErrorMessage(res, "削除に失敗しました"));
       }
       await fetchCategories();
     } catch (e) {
-      setCatError(e instanceof Error ? e.message : "不明なエラー");
+      setCatError(errorMessage(e, "不明なエラー"));
     }
   }
 

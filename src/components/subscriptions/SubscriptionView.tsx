@@ -15,6 +15,8 @@ import Link from "next/link";
 import { HelpLink } from "@/components/help/HelpLink";
 import { useEffect, useState } from "react";
 import { buildSubscriptionList, type SubscriptionRow, type SubscriptionSource } from "@/lib/subscriptions/list";
+import { apiErrorMessage, errorMessage } from "@/lib/errors/api-error";
+import { ErrorNotice } from "@/components/ui/error-notice";
 
 interface Item extends SubscriptionSource {
   manage_url: string | null;
@@ -107,23 +109,25 @@ export function SubscriptionView() {
   const [items, setItems] = useState<Item[] | null>(null);
   const [usdJpy, setUsdJpy] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [reload, setReload] = useState(0);
   const today = todayLocal();
 
   useEffect(() => {
     let alive = true;
     fetch("/api/v1/fixed-costs")
       .then(async (res) => {
-        if (!res.ok) throw new Error("サブスクの取得に失敗しました");
+        if (!res.ok) throw new Error(await apiErrorMessage(res, "サブスクの取得に失敗しました"));
         const json = await res.json();
         if (!alive) return;
         setItems(json.data);
+        setError(null);
         setUsdJpy(json.meta?.usd_jpy ?? null);
       })
-      .catch((e) => alive && setError(e instanceof Error ? e.message : "不明なエラー"));
+      .catch((e) => alive && setError(errorMessage(e, "サブスクの取得に失敗しました")));
     return () => {
       alive = false;
     };
-  }, []);
+  }, [reload]);
 
   const list = items ? buildSubscriptionList(items, today) : null;
   const hasUsd = list?.active.some((r) => r.currency === "USD") ?? false;
@@ -143,7 +147,7 @@ export function SubscriptionView() {
         </Link>
       </div>
 
-      {error && <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">{error}</div>}
+      {error && <ErrorNotice message={error} onRetry={() => setReload((n) => n + 1)} />}
 
       {!list ? (
         !error && (

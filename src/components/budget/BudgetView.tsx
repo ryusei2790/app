@@ -15,6 +15,8 @@
 import { useEffect, useState } from "react";
 import { Bar, BarChart, CartesianGrid, Legend, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { RuleEditor, type RuleRow } from "./RuleEditor";
+import { errorMessage } from "@/lib/errors/api-error";
+import { ErrorNotice } from "@/components/ui/error-notice";
 
 interface FrameResult {
   id: string;
@@ -76,7 +78,7 @@ export function BudgetView({ initialMonth }: { initialMonth?: string }) {
           setError(null);
         }
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : "読み込みに失敗しました");
+        if (!cancelled) setError(errorMessage(e, "読み込みに失敗しました"));
       }
     })();
     // 月を素早く切り替えたとき、古い月の結果で上書きしない
@@ -85,7 +87,7 @@ export function BudgetView({ initialMonth }: { initialMonth?: string }) {
     };
   }, [month, reload]);
 
-  if (error) return <div className="p-4 text-sm text-red-700">{error}</div>;
+  if (error) return <div className="p-4"><ErrorNotice message={error} onRetry={() => setReload((n) => n + 1)} /></div>;
   if (!data) return <div className="p-4 text-sm text-gray-500">読み込み中…</div>;
 
   const { summary } = data;

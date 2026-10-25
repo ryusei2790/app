@@ -18,6 +18,7 @@ import { useEffect, useRef, useState } from "react";
 import { ImportHistoryList } from "@/components/import/ImportHistoryList";
 import { downloadFromApi } from "./download";
 import { SheetExportButton } from "./SheetExportButton";
+import { errorMessage } from "@/lib/errors/api-error";
 
 const DELETE_WORD = "削除";
 const LAST_BACKUP_KEY = "kakebo.lastFullBackupAt";
@@ -153,7 +154,7 @@ export function DataPanel() {
       setRestoreCounts(null);
       setReloadKey((n) => n + 1);
     } catch (e) {
-      setRestoreMsg({ kind: "error", text: e instanceof Error ? e.message : "復元に失敗しました" });
+      setRestoreMsg({ kind: "error", text: errorMessage(e, "復元に失敗しました") });
     } finally {
       setRestoring(false);
     }
@@ -198,7 +199,7 @@ export function DataPanel() {
       setConfirmWord("");
       setReloadKey((n) => n + 1);
     } catch (e) {
-      setDeleteMsg({ kind: "error", text: e instanceof Error ? e.message : "削除に失敗しました" });
+      setDeleteMsg({ kind: "error", text: errorMessage(e, "削除に失敗しました") });
     } finally {
       setDeleting(false);
     }

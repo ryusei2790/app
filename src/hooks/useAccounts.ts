@@ -7,6 +7,7 @@
 
 import { useState, useEffect } from "react";
 import type { Account } from "@/types/database";
+import { apiErrorMessage, errorMessage } from "@/lib/errors/api-error";
 
 export function useAccounts() {
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -17,11 +18,11 @@ export function useAccounts() {
     (async () => {
       try {
         const res = await fetch("/api/v1/accounts");
-        if (!res.ok) throw new Error("口座の取得に失敗しました");
+        if (!res.ok) throw new Error(await apiErrorMessage(res, "口座の取得に失敗しました"));
         const json = await res.json();
         setAccounts(json.data);
       } catch (e) {
-        setError(e instanceof Error ? e.message : "不明なエラー");
+        setError(errorMessage(e, "不明なエラー"));
       } finally {
         setLoading(false);
       }
