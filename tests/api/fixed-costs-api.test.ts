@@ -29,6 +29,7 @@ import * as fcList from "@/app/api/v1/fixed-costs/route";
 import * as fcOne from "@/app/api/v1/fixed-costs/[id]/route";
 import * as fcGen from "@/app/api/v1/fixed-costs/generate/route";
 import * as cron from "@/app/api/cron/fixed-costs/route";
+import * as health from "@/app/api/health/route";
 
 const users: TestUser[] = [];
 async function newUser(label: string) {
@@ -129,6 +130,23 @@ describe("R5 アプリを開かなくてもサーバー側で展開され、二�
     const second = await cron.GET(req());
     expect(second.status).toBe(200);
     expect(await autoTx(user.id)).toHaveLength(3);
+  });
+
+  it("見張り /api/health は未展開の人がいると 503 cron:false、定期実行の後は 200（mywork#764 ④）", async () => {
+    const { user, account } = await newUser("r5h");
+    await adminSql(
+      `INSERT INTO fixed_costs (user_id, account_id, name, amount, cycle, start_date)
+       VALUES ($1,$2,'見張りの確認',500,'weekly',$3)`,
+      [user.id, account, addDays(todayJst(), -3)]
+    );
+    const before = await health.GET();
+    expect(before.status).toBe(503);
+    expect(await before.json()).toEqual({ db: true, cron: false });
+
+    await runFixedCostExpansion();
+    const after = await health.GET();
+    expect(after.status).toBe(200);
+    expect(await after.json()).toEqual({ db: true, cron: true });
   });
 
   it("同じ日に展開処理を2回走らせても重複しない（同時でも）", async () => {

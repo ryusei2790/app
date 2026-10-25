@@ -7,6 +7,7 @@
  *   - 比較は timingSafeEqual（文字を1つずつ当てていく攻撃で鍵を推測されないように）
  * Vercel Cron は環境変数 CRON_SECRET を設定すると自動でこのヘッダを付けて呼ぶ。
  * ログインは要らない（proxy.ts の保護対象は画面だけで、/api は各 route が自分で確かめる）。
+ * 1人でも失敗したら 500 を返す（Vercel のログで失敗と分かるように。翌日の見張り /api/health でも拾う。mywork#764 ④）。
  */
 
 import { timingSafeEqual } from "node:crypto";
@@ -25,5 +26,6 @@ function authorized(request: Request): boolean {
 export async function GET(request: Request) {
   if (!authorized(request)) return error("UNAUTHORIZED", "認証が必要です", 401);
   const result = await runFixedCostExpansion();
+  if (result.failed > 0) return error("INTERNAL_ERROR", "一部の人の定期の展開に失敗しました", 500, { ...result });
   return ok(result);
 }
