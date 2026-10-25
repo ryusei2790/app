@@ -18,6 +18,7 @@ import { useAccounts } from "@/hooks/useAccounts";
 import { decodeCsv } from "@/lib/csv/decode";
 import { detectFormat } from "@/lib/csv/kakebo";
 import { ImportHistoryList } from "./ImportHistoryList";
+import { errorMessage } from "@/lib/errors/api-error";
 
 type CardType = "epos" | "saison";
 type Format = "kakebo" | "card";
@@ -140,7 +141,7 @@ export function CsvImportView({ isOwner = false }: { isOwner?: boolean }) {
       setSchedule(new Set(data.future.filter((f) => !f.already_scheduled).map((f) => f.key)));
       setStatus("idle");
     } catch (e) {
-      setErrorMsg(e instanceof Error ? e.message : "不明なエラー");
+      setErrorMsg(errorMessage(e, "不明なエラー"));
       setStatus("error");
     }
   }
@@ -163,7 +164,7 @@ export function CsvImportView({ isOwner = false }: { isOwner?: boolean }) {
       setFile(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
     } catch (e) {
-      setErrorMsg(e instanceof Error ? e.message : "不明なエラー");
+      setErrorMsg(errorMessage(e, "不明なエラー"));
       setStatus("error");
     }
   }
@@ -187,7 +188,7 @@ export function CsvImportView({ isOwner = false }: { isOwner?: boolean }) {
       setFile(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
     } catch (e) {
-      setErrorMsg(e instanceof Error ? e.message : "不明なエラー");
+      setErrorMsg(errorMessage(e, "不明なエラー"));
       setStatus("error");
     }
   }

@@ -8,6 +8,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import type { SummaryResponse } from "@/types/api";
+import { apiErrorMessage, errorMessage } from "@/lib/errors/api-error";
 
 export function useMonthlySummary(month: string) {
   const [summary, setSummary] = useState<SummaryResponse | null>(null);
@@ -22,14 +23,14 @@ export function useMonthlySummary(month: string) {
     (async () => {
       try {
         const res = await fetch(`/api/v1/summary?month=${month}`);
-        if (!res.ok) throw new Error("集計の取得に失敗しました");
+        if (!res.ok) throw new Error(await apiErrorMessage(res, "集計の取得に失敗しました"));
         const json = await res.json();
         if (!cancelled) {
           setSummary(json.data);
           setError(null);
         }
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : "不明なエラー");
+        if (!cancelled) setError(errorMessage(e, "集計の取得に失敗しました"));
       } finally {
         if (!cancelled) setLoading(false);
       }

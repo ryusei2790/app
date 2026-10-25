@@ -12,6 +12,7 @@
 
 import { useEffect, useState } from "react";
 import type { BudgetData } from "./BudgetView";
+import { errorMessage } from "@/lib/errors/api-error";
 
 export interface RuleRow {
   id: string;
@@ -75,7 +76,7 @@ export function RuleEditor({ data, onChanged }: { data: BudgetData; onChanged: (
       setMessage(done);
       onChanged();
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : "保存に失敗しました");
+      setMessage(errorMessage(e, "保存に失敗しました"));
     }
   }
 

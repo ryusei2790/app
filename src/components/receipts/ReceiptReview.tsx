@@ -15,6 +15,7 @@ import { useCategories } from "@/hooks/useCategories";
 import type { ReceiptDraft } from "@/lib/receipt/schema";
 import { matchCategoryId } from "@/lib/receipt/categories";
 import { splitByCategory } from "@/lib/receipt/split";
+import { errorMessage } from "@/lib/errors/api-error";
 
 interface Props {
   draft: ReceiptDraft;
@@ -85,7 +86,7 @@ export function ReceiptReview({ draft, model, onSaved, onRetake }: Props) {
       if (!res.ok) throw new Error(json.error?.message ?? "保存に失敗しました");
       onSaved();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "保存に失敗しました");
+      setError(errorMessage(err, "保存に失敗しました"));
     } finally {
       setSaving(false);
     }

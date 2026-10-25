@@ -7,6 +7,7 @@
 
 import { useState, useEffect } from "react";
 import type { Category } from "@/types/database";
+import { apiErrorMessage, errorMessage } from "@/lib/errors/api-error";
 
 export function useCategories(type?: "income" | "expense") {
   const [categories, setCategories] = useState<Category[]>([]);
@@ -18,11 +19,11 @@ export function useCategories(type?: "income" | "expense") {
       try {
         const params = type ? `?type=${type}` : "";
         const res = await fetch(`/api/v1/categories${params}`);
-        if (!res.ok) throw new Error("カテゴリの取得に失敗しました");
+        if (!res.ok) throw new Error(await apiErrorMessage(res, "カテゴリの取得に失敗しました"));
         const json = await res.json();
         setCategories(json.data);
       } catch (e) {
-        setError(e instanceof Error ? e.message : "不明なエラー");
+        setError(errorMessage(e, "不明なエラー"));
       } finally {
         setLoading(false);
       }

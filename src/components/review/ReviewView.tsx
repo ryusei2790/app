@@ -17,6 +17,8 @@ import { useEffect, useState } from "react";
 import { useCategories } from "@/hooks/useCategories";
 import { currentMonthKey, shiftMonthKey } from "@/hooks/useDashboardSummary";
 import { DEFINITIONS_PATH, FOOTNOTES, kindLabel, type TransactionKind } from "@/lib/aggregate/definitions";
+import { apiErrorMessage, errorMessage } from "@/lib/errors/api-error";
+import { ErrorNotice } from "@/components/ui/error-notice";
 
 interface Item {
   id: string;
@@ -79,14 +81,14 @@ export function ReviewView({ initialMonth }: { initialMonth?: string }) {
     (async () => {
       try {
         const res = await fetch(`/api/v1/review?month=${month}`);
+        if (!res.ok) throw new Error(await apiErrorMessage(res, "読み込みに失敗しました"));
         const json = await res.json();
-        if (!res.ok) throw new Error(json.error?.message ?? "読み込みに失敗しました");
         if (!cancelled) {
           setData(json.data);
           setError(null);
         }
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : "読み込みに失敗しました");
+        if (!cancelled) setError(errorMessage(e, "読み込みに失敗しました"));
       }
     })();
     return () => {
@@ -105,12 +107,11 @@ export function ReviewView({ initialMonth }: { initialMonth?: string }) {
         body: JSON.stringify(body),
       });
       if (!res.ok) {
-        const json = await res.json();
-        throw new Error(json.error?.message ?? "変更に失敗しました");
+        throw new Error(await apiErrorMessage(res, "変更に失敗しました"));
       }
       load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "変更に失敗しました");
+      setError(errorMessage(e, "変更に失敗しました"));
     } finally {
       setBusy(null);
     }
@@ -120,11 +121,11 @@ export function ReviewView({ initialMonth }: { initialMonth?: string }) {
     setBusy(id);
     try {
       const res = await fetch(`/api/v1/transactions/${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("削除に失敗しました");
+      if (!res.ok) throw new Error(await apiErrorMessage(res, "削除に失敗しました"));
       setConfirmDelete(null);
       load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "削除に失敗しました");
+      setError(errorMessage(e, "削除に失敗しました"));
     } finally {
       setBusy(null);
     }
@@ -156,7 +157,7 @@ export function ReviewView({ initialMonth }: { initialMonth?: string }) {
         {" "}を見てください。
       </p>
 
-      {error && <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+      {error && <ErrorNotice message={error} onRetry={load} />}
       {!data ? (
         <div className="h-24 animate-pulse rounded-xl bg-gray-100" />
       ) : (

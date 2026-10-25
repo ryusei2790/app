@@ -15,10 +15,11 @@ import { FixedBreakdown } from "./FixedBreakdown";
 import { UpcomingList } from "./UpcomingList";
 import { FOOTNOTES } from "@/lib/aggregate/definitions";
 import { currentMonthKey, shiftMonthKey, useMonthlySummary } from "@/hooks/useDashboardSummary";
+import { ErrorNotice } from "@/components/ui/error-notice";
 
 export function DashboardView() {
   const [month, setMonth] = useState(currentMonthKey());
-  const { summary, loading, error } = useMonthlySummary(month);
+  const { summary, loading, error, refetch } = useMonthlySummary(month);
   const [y, m] = month.split("-").map(Number);
   const reviewCount = summary ? summary.review.refund_candidates + summary.review.unassigned + summary.review.duplicates : 0;
 
@@ -49,7 +50,7 @@ export function DashboardView() {
         </button>
       </div>
 
-      {error && <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+      {error && <ErrorNotice message={error} onRetry={refetch} />}
 
       {loading ? (
         <div className="space-y-4">

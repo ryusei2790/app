@@ -15,6 +15,7 @@ import Link from "next/link";
 import { useRef, useState, useSyncExternalStore } from "react";
 import { compressImage } from "@/lib/image/compress";
 import type { ReceiptDraft } from "@/lib/receipt/schema";
+import { errorMessage } from "@/lib/errors/api-error";
 
 const CONSENT_KEY = "receipt_consent_v1";
 
@@ -73,7 +74,7 @@ export function ReceiptCapture({ usage, onParsed }: Props) {
       onParsed({ draft: json.data.draft, model: json.data.model });
     } catch (e) {
       if (ac.signal.aborted) setError("読み取りをやめました（回数は減っていません）。");
-      else setError(e instanceof Error ? e.message : "読み取りに失敗しました");
+      else setError(errorMessage(e, "読み取りに失敗しました"));
     } finally {
       setBusy(false);
       abortRef.current = null;

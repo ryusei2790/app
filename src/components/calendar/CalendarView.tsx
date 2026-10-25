@@ -22,6 +22,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useTransactions } from "@/hooks/useTransactions";
+import { ErrorNotice } from "@/components/ui/error-notice";
 
 const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
 
@@ -36,7 +37,7 @@ export function CalendarView() {
   const [month, setMonth] = useState(today.getMonth() + 1);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
 
-  const { transactions, loading, error, createTransaction, deleteTransaction } =
+  const { transactions, loading, error, refetch, createTransaction, deleteTransaction } =
     useTransactions({ year, month });
 
   // カレンダーグリッドを構築（前月末・当月・翌月頭を含む最大42マス）
@@ -179,11 +180,7 @@ export function CalendarView() {
       </div>
 
       {/* エラー表示 */}
-      {error && (
-        <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700">
-          {error}
-        </div>
-      )}
+      {error && <ErrorNotice message={error} onRetry={refetch} />}
 
       {/* 曜日ヘッダー */}
       <div className="grid grid-cols-7 gap-1">
