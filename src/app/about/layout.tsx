@@ -18,6 +18,9 @@ export default function AboutLayout({ children }: { children: React.ReactNode })
             <Link href="/about/help" className="text-sm text-blue-600 hover:underline">
               使い方
             </Link>
+            <Link href="/about/changes" className="text-sm text-blue-600 hover:underline">
+              更新履歴
+            </Link>
             <Link href="/dashboard" className="text-sm text-blue-600 hover:underline">
               ダッシュボードへ →
             </Link>

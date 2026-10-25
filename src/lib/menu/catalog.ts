@@ -10,6 +10,7 @@
 
 import { DEFINITIONS_PATH } from "@/lib/aggregate/definitions";
 import { HELP_PATH } from "@/lib/help/sections";
+import { CHANGES_PATH } from "@/lib/changes/history";
 
 export interface Feature {
   id: string;
@@ -34,6 +35,7 @@ export const CATALOG: Feature[] = [
   { id: "fixed-costs", label: "定期の収入・支出", icon: "🔁", href: "/fixed-costs", description: "家賃・給料・サブスクなど毎月決まった収入・支出を登録して自動で記録する" },
   { id: "subscriptions", label: "サブスク", icon: "🔔", href: "/subscriptions", description: "サブスクだけを次回更新が近い順に見る。月・年あたりの合計、管理ページ・解約ページへのリンク、支払いカード" },
   { id: "help", label: "使い方", icon: "❓", href: HELP_PATH, description: "最初の設定・CSV 取り込み・要確認・定期とサブスク・書き出しの手順。各画面の「？」からも開ける" },
+  { id: "changes", label: "更新履歴", icon: "🆕", href: CHANGES_PATH, description: "いつ何が変わったかと、データの持ち方（保存先・消し方）" },
   { id: "definitions", label: "数字の定義", icon: "📖", href: DEFINITIONS_PATH, description: "支出・収入などの数字をどう数えているかの説明" },
   { id: "requests", label: "要望", icon: "📝", href: "/requests", description: "チャットで送った機能の要望と、その状態（受付・対応中・完了・見送り）を見る" },
   { id: "budget", label: "予算台帳", icon: "📒", href: "/budget", ownerOnly: true, description: "費目ごとの月の予算と使った額を比べる" },
