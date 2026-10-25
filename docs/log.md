@@ -8,3 +8,6 @@
 ## 2026-10-25 dev-8: 運用手順書（mywork#764 ⑤）
 - 何を: docs/procedures.md（デプロイ・migration・鍵の更新・費用の上限・バックアップ/監視の確認と復元・困ったとき）
 - なぜ: 本番の手順が kakebo_next/docs と README に散らばっていたので、app リポの中に1か所にまとめた
+## 2026-10-25 dev-8: 更新履歴とデータの持ち方（mywork#764 ⑥）
+- 何を: /about/changes（lib/changes/history.ts）、メニューと about ヘッダに導線、テスト C1〜C3
+- なぜ: 本番アプリとして何が変わったか・データをどこに置きどう消せるかを本人が読めるように
