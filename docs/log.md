@@ -4,3 +4,7 @@
 - 何を: `src/lib/backup/weekly.ts`（ファイル名・age 暗号化/復号・間引き）、`scripts/backup/`（weekly-backup.ts・restore-drill.ts・run.sh・check-fresh.sh・setup.sh）、テスト `tests/unit/backup.test.ts`・`tests/db/backup.test.ts`
 - なぜ: 設計書（kakebo_next/docs/2026-10-24_定期バックアップ_設計.md）の決定 A（Mac launchd 週1＋Google Drive・age・直近8週＋月初12か月）
 - 決めたこと: 暗号化は npm の age-encryption（age CLI と同じ形式。brew の age を入れなくても動く）。8日監視は gh-local-bridge を書き換えず、毎日 12:00 の launchd（check-fresh.sh）にした（bridge.sh は他セッションの未コミット変更があり、同じ PR に入れられないため）。復元テストの一致判定は件数（共通カテゴリーの id は DB ごとに違うので、本番のファイルではハッシュは一致しなくてよい）
+
+## 2026-10-25 dev-8: 運用手順書（mywork#764 ⑤）
+- 何を: docs/procedures.md（デプロイ・migration・鍵の更新・費用の上限・バックアップ/監視の確認と復元・困ったとき）
+- なぜ: 本番の手順が kakebo_next/docs と README に散らばっていたので、app リポの中に1か所にまとめた
