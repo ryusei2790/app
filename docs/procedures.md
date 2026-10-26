@@ -62,7 +62,7 @@
 - バックアップの鮮度: 毎日 12:00 `com.ryusei.kakebo-backup-check`。最新が8日より古ければ俺待ち Issue
 - 見張り: 毎日 12:30 `com.ryusei.kakebo-monitor`（health・Vercel・バックアップ失敗）。駄目なら俺待ち Issue（同じ題名が開いていれば立てない）。ログ `~/Library/Logs/kakebo-monitor.log`
 - 動いているかの確認: `launchctl list | grep kakebo`（3つ出る）、`tail ~/Library/Logs/kakebo-*.log`
-- 手で流す: `bash ~/.local/share/kakebo-backup/scripts/backup/run.sh`／`bash ~/.local/share/kakebo-backup/scripts/monitor/check.sh`
+- 手で流す: `bash ~/.local/share/kakebo-backup/scripts/backup/run.sh`（端末から流すと結果の1行が画面にも出る）／`bash ~/.local/share/kakebo-backup/scripts/monitor/check.sh`
 - 設定し直す（Mac を替えた・壊れた）: `bash scripts/backup/setup.sh` → `bash scripts/monitor/setup.sh`（何度流しても壊れない）
 - 止める: `launchctl bootout gui/$(id -u)/<ラベル>`
 - **復元**（データを失ったとき）:

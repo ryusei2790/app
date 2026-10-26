@@ -8,6 +8,11 @@ export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
 WT="$HOME/.local/share/kakebo-backup"
 LOG="$HOME/Library/Logs/kakebo-backup.log"
 CONF="$HOME/.config/kakebo-backup"
+# 手動実行（端末から）のときだけ、終わりにログの最後の1行を画面にも出す（mywork#764）。launchd ではログだけ
+if [ -t 1 ]; then
+  exec 3>&1
+  trap 'echo "$(tail -1 "${LOG}")  （詳細: ${LOG}）" >&3' EXIT
+fi
 exec >>"$LOG" 2>&1
 echo "== $(date '+%F %T')"
 
