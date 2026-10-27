@@ -13,6 +13,7 @@
 
 import { prisma } from "./prisma";
 import { dateOnlyToDb } from "./date/jst";
+import type { Utm } from "./lp/utm";
 
 /** 今日まで展開が済んでいない有効な定期を持つ人の ID（定期実行 R5 用） */
 export async function listUserIdsWithPendingFixedCosts(today: string): Promise<string[]> {
@@ -103,4 +104,79 @@ export async function listAllFeatureRequests() {
 export async function setFeatureRequestStatus(id: string, status: string): Promise<boolean> {
   const r = await prisma.featureRequest.updateMany({ where: { id }, data: { status, updatedAt: new Date() } });
   return r.count > 0;
+}
+
+// ─── 広告の着地ページ（mywork#878）。表は RLS 有効・ポリシー無しで、ここからしか読み書きしない ───
+
+
+const utmCols = (u: Utm) => ({
+  utmSource: u.utm_source ?? null,
+  utmMedium: u.utm_medium ?? null,
+  utmCampaign: u.utm_campaign ?? null,
+  utmContent: u.utm_content ?? null,
+});
+
+/** 着地ページを開いた記録。同じ visitor の 30 分以内の重複は数えない。数えたら true */
+export async function recordLpView(args: {
+  visitorId: string;
+  utm: Utm;
+  referrerHost?: string;
+  now: Date;
+}): Promise<boolean> {
+  const since = new Date(args.now.getTime() - 30 * 60 * 1000);
+  const recent = await prisma.lpView.count({ where: { visitorId: args.visitorId, viewedAt: { gte: since } } });
+  if (recent > 0) return false;
+  await prisma.lpView.create({
+    data: { visitorId: args.visitorId, viewedAt: args.now, referrerHost: args.referrerHost ?? null, ...utmCols(args.utm) },
+  });
+  return true;
+}
+
+/** 直近1分の事前登録の試行数（連打対策。visitor ごと） */
+export async function countRecentWaitlistByVisitor(visitorId: string, now: Date): Promise<number> {
+  return prisma.waitlistSignup.count({
+    where: { visitorId, createdAt: { gte: new Date(now.getTime() - 60 * 1000) } },
+  });
+}
+
+/** 事前登録。同じアドレスは2件目を作らない（既にあれば false）。email は normalizeEmail 済みのものだけ */
+export async function insertWaitlistSignup(args: { email: string; visitorId: string | null; utm: Utm }): Promise<boolean> {
+  const r = await prisma.waitlistSignup.createMany({
+    data: [{ email: args.email, visitorId: args.visitorId, ...utmCols(args.utm) }],
+    skipDuplicates: true,
+  });
+  return r.count > 0;
+}
+
+export interface WaitlistRow {
+  createdAt: Date;
+  email: string;
+  utmSource: string | null;
+  utmMedium: string | null;
+  utmCampaign: string | null;
+  utmContent: string | null;
+}
+
+/** 社長だけが見る事前登録の一覧と、utm_content 別の「開いた数（人）・登録数」 */
+export async function getWaitlistReport(): Promise<{
+  signups: WaitlistRow[];
+  byContent: { utmContent: string | null; views: number; visitors: number; signups: number }[];
+}> {
+  const signups = await prisma.waitlistSignup.findMany({
+    orderBy: { createdAt: "desc" },
+    select: { createdAt: true, email: true, utmSource: true, utmMedium: true, utmCampaign: true, utmContent: true },
+  });
+  const views = await prisma.$queryRaw<{ utm_content: string | null; views: bigint; visitors: bigint }[]>`
+    SELECT utm_content, count(*) AS views, count(DISTINCT visitor_id) AS visitors FROM lp_views GROUP BY utm_content`;
+  const map = new Map<string | null, { views: number; visitors: number; signups: number }>();
+  for (const v of views) map.set(v.utm_content, { views: Number(v.views), visitors: Number(v.visitors), signups: 0 });
+  for (const s of signups) {
+    const cur = map.get(s.utmContent) ?? { views: 0, visitors: 0, signups: 0 };
+    cur.signups += 1;
+    map.set(s.utmContent, cur);
+  }
+  const byContent = [...map.entries()]
+    .map(([utmContent, c]) => ({ utmContent, ...c }))
+    .sort((a, b) => (a.utmContent ?? "~").localeCompare(b.utmContent ?? "~"));
+  return { signups, byContent };
 }

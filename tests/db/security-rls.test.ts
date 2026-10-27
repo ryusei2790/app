@@ -21,7 +21,7 @@ import {
 /** アプリが使う表（public スキーマ）。新しい表を足したらここにも足す */
 const APP_TABLES = [
   "profiles", "accounts", "categories", "fixed_costs", "csv_imports", "transactions", "receipt_parse_logs", "receipts",
-  "budget_frames", "budget_rules", "feature_requests",
+  "budget_frames", "budget_rules", "feature_requests", "lp_views", "waitlist_signups",
 ];
 
 let A: TestUser;
@@ -241,5 +241,14 @@ describe("S8 レポート用 RPC は自分の分しか集計しない", () => {
   it("未ログインでは monthly_summary を呼べない", async () => {
     const { error } = await anonClient().rpc("monthly_summary", { p_year: 2026, p_month: 10 });
     expect(error).not.toBeNull();
+  });
+});
+
+describe("着地ページの表（mywork#878）はログイン利用者からも読めない", () => {
+  it.each(["lp_views", "waitlist_signups"])("B の JWT で %s を select / insert するとエラー", async (table) => {
+    const sel = await B.client.from(table).select("*").limit(1);
+    expect(sel.error).not.toBeNull();
+    const ins = await B.client.from(table).insert({ email: "x@example.com", visitor_id: "x" });
+    expect(ins.error).not.toBeNull();
   });
 });
