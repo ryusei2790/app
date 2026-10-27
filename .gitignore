@@ -53,3 +53,6 @@ next-env.d.ts
 
 # 実データの回帰テストの期待値の本体（金額を含む）。git にはハッシュだけ（scripts/regression/expected.json）
 /.regression/
+
+# Supabase CLI の一時ファイル（ローカル環境ごとに変わる）
+supabase/.temp/
