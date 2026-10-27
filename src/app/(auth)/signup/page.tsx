@@ -35,7 +35,12 @@ export default function SignupPage() {
     });
 
     if (error) {
-      setError(error.message);
+      // 本番は新規登録を止めている（本人専用）。英語のまま出さない（mywork#878）
+      setError(
+        /signup.*not allowed|signup_disabled/i.test(`${error.code ?? ""} ${error.message}`)
+          ? "いまは新規登録を受け付けていません。トップページから公開のお知らせを受け取れます"
+          : error.message
+      );
       setLoading(false);
       return;
     }
