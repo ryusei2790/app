@@ -50,10 +50,16 @@ async function main() {
   await writeFile(tmp, data);
   await rename(tmp, path.join(dir, name));
 
-  const remove = selectToDelete(await readdir(dir), todayJst(now));
+  // launchd から起動した node は Drive フォルダの一覧を TCC に拒まれる（書き込みは通る。mywork#839）。
+  // 一覧が取れないときは古いファイルの整理だけ飛ばし、バックアップ自体は成功扱いにする
+  const names = await readdir(dir).catch((e) => {
+    if (e?.code === "EPERM" || e?.code === "EACCES") return null;
+    throw e;
+  });
+  const remove = names ? selectToDelete(names, todayJst(now)) : [];
   for (const f of remove) await unlink(path.join(dir, f));
 
-  console.log(JSON.stringify({ ok: true, file: name, counts: backup.counts, deleted: remove }));
+  console.log(JSON.stringify({ ok: true, file: name, counts: backup.counts, deleted: remove, ...(names ? {} : { rotate: "skipped (no list permission)" }) }));
 }
 
 main()
