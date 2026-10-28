@@ -204,7 +204,8 @@ double_confirm_changes = true
 # If enabled, users need to confirm their email address before signing in.
 enable_confirmations = false
 # If enabled, users will need to reauthenticate or have logged in recently to change their password.
-secure_password_change = false
+# AI 接続のトークンでパスワードを変えさせない守りの1つ（ログインから24時間を過ぎたセッションでは再認証が要る。mywork#882）
+secure_password_change = true
 # Controls the minimum amount of time that must pass before sending another signup confirmation or password reset email.
 max_frequency = "1s"
 # Number of characters used in the email OTP.
@@ -344,11 +345,13 @@ enabled = false
 # OAuth server configuration
 [auth.oauth_server]
 # Enable OAuth server functionality
-enabled = false
+# ローカルでは ON（AI エージェント接続 /api/mcp の開発・テスト用。mywork#882）。本番は Supabase の管理画面で ON にする
+enabled = true
 # Path for OAuth consent flow UI
 authorization_url_path = "/oauth/consent"
 # Allow dynamic client registration
-allow_dynamic_registration = false
+# Claude・ChatGPT のコネクタは自分でクライアント登録（DCR）するので ON
+allow_dynamic_registration = true
 
 [edge_runtime]
 enabled = true

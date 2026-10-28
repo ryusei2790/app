@@ -12,6 +12,7 @@
 
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { safeNextPath } from "@/lib/safe-next";
 
 export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
@@ -70,10 +71,9 @@ export async function proxy(request: NextRequest) {
     request.nextUrl.pathname === "/login" ||
     request.nextUrl.pathname === "/signup";
 
+  // ?next= があればそこへ（AI 接続の同意画面から来たとき。中のパスだけ: lib/safe-next.ts）
   if (user && isAuthRoute) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/calendar";
-    return NextResponse.redirect(url);
+    return NextResponse.redirect(new URL(safeNextPath(request.nextUrl.searchParams.get("next")), request.url));
   }
 
   return supabaseResponse;
@@ -87,7 +87,8 @@ export const config = {
      * - _next/image（画像最適化）
      * - favicon.ico
      * - sw.js・manifest.webmanifest（PWA。ログイン前でも取れる必要がある）
+     * - api/mcp・.well-known（AI エージェントの窓口。Cookie ではなく Bearer トークンで守る: mywork#882）
      */
-    "/((?!_next/static|_next/image|favicon.ico|sw\\.js|manifest\\.webmanifest|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|sw\\.js|manifest\\.webmanifest|api/mcp|\\.well-known|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

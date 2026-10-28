@@ -9,18 +9,20 @@
 
 import Link from "next/link";
 import { HelpLink } from "@/components/help/HelpLink";
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useSyncExternalStore } from "react";
 import type { Account, Category } from "@/types/database";
 import { DataFlowTable } from "./DataFlowTable";
 import { DataPanel } from "./DataPanel";
+import { AiConnectionPanel } from "./AiConnectionPanel";
 import { apiErrorMessage, errorMessage } from "@/lib/errors/api-error";
 
-type Tab = "accounts" | "categories" | "data" | "data-flow";
+type Tab = "accounts" | "categories" | "data" | "data-flow" | "ai";
 const TAB_LABELS: Record<Tab, string> = {
   accounts: "口座管理",
   categories: "カテゴリ管理",
   data: "データと書き出し",
   "data-flow": "データの流れ",
+  ai: "AI との接続",
 };
 
 const ACCOUNT_TYPES = [
@@ -29,8 +31,16 @@ const ACCOUNT_TYPES = [
   { value: "bank", label: "銀行口座" },
 ] as const;
 
+/** /settings#ai で「AI との接続」を開く（同意画面・MCP の案内からのリンク。mywork#882） */
+function subscribeHash(onChange: () => void) {
+  window.addEventListener("hashchange", onChange);
+  return () => window.removeEventListener("hashchange", onChange);
+}
+
 export function SettingsView() {
-  const [tab, setTab] = useState<Tab>("accounts");
+  const hashTab = useSyncExternalStore(subscribeHash, () => (window.location.hash === "#ai" ? "ai" : null), () => null);
+  const [chosenTab, setTab] = useState<Tab | null>(null);
+  const tab: Tab = chosenTab ?? hashTab ?? "accounts";
 
   // ─── 口座管理 ──────────────────────────────────────────
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -53,7 +63,8 @@ export function SettingsView() {
     }
   }, []);
 
-  useEffect(() => { fetchAccounts(); }, [fetchAccounts]);
+  // 読み込みは次のマイクロタスクで始める（effect の中で同期的に setState しない: react-hooks/set-state-in-effect）
+  useEffect(() => { void Promise.resolve().then(fetchAccounts); }, [fetchAccounts]);
 
   async function handleAddAccount(e: React.FormEvent) {
     e.preventDefault();
@@ -112,7 +123,7 @@ export function SettingsView() {
     }
   }, []);
 
-  useEffect(() => { fetchCategories(); }, [fetchCategories]);
+  useEffect(() => { void Promise.resolve().then(fetchCategories); }, [fetchCategories]);
 
   async function handleAddCategory(e: React.FormEvent) {
     e.preventDefault();
@@ -163,9 +174,9 @@ export function SettingsView() {
       </div>
 
       {/* タブ */}
-      {/* スマホ幅（375px）では4つが1行に入らず、横スクロールだと「データの流れ」が隠れるので 2×2 に並べる */}
+      {/* スマホ幅（375px）では1行に入らず、横スクロールだと右のタブが隠れるので2列に並べる */}
       <div className="grid grid-cols-2 border-b border-gray-200 sm:flex">
-        {(["accounts", "categories", "data", "data-flow"] as Tab[]).map((t) => (
+        {(["accounts", "categories", "data", "data-flow", "ai"] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -185,6 +196,9 @@ export function SettingsView() {
 
       {/* ─── データの流れ（何が外に出るか。mywork#425 第1弾） ─────────── */}
       {tab === "data-flow" && <DataFlowTable />}
+
+      {/* ─── AI との接続（利用者の AI エージェントからの読み書き。mywork#882） ─────────── */}
+      {tab === "ai" && <AiConnectionPanel />}
 
       {/* ─── 口座管理タブ ─────────────────────────────────── */}
       {tab === "accounts" && (

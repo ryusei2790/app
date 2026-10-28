@@ -95,6 +95,12 @@ export function DayTransactionList({
                         レシート
                       </span>
                     )}
+                    {tx.source === "api" && (
+                      // 利用者の AI エージェントが /api/mcp で記録したもの（mywork#882）
+                      <span className="ml-1 rounded bg-violet-100 px-1 py-0.5 text-violet-700">
+                        AI
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>

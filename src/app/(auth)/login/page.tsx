@@ -2,7 +2,8 @@
  * @file app/(auth)/login/page.tsx
  * @description ログインページ。
  * メール＋パスワード認証と Google OAuth を提供する。
- * 認証成功後はミドルウェアが /calendar にリダイレクトする。
+ * 認証成功後は ?next=（このサイトの中のパスだけ。lib/safe-next.ts）か /calendar へ進む。
+ * ?next= は AI 接続の同意画面（/oauth/consent）から戻ってくるため（mywork#882）。
  */
 
 "use client";
@@ -11,6 +12,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
+import { safeNextPath } from "@/lib/safe-next";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -21,6 +23,11 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
 
   // Supabase のクライアントは押したときに作る（描画時に作ると、公開キーの無い環境で事前レンダリングが落ちる）
+
+  /** ログイン後の戻り先。useSearchParams を使うと Suspense が要るので、押したときに URL から読む */
+  function nextPath() {
+    return safeNextPath(new URLSearchParams(window.location.search).get("next"));
+  }
 
   /** メール＋パスワードでログイン */
   async function handleEmailLogin(e: React.FormEvent) {
@@ -39,7 +46,7 @@ export default function LoginPage() {
       return;
     }
 
-    router.push("/calendar");
+    router.push(nextPath());
     router.refresh();
   }
 
@@ -49,7 +56,7 @@ export default function LoginPage() {
     const { error } = await createClient().auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath())}`,
       },
     });
     if (error) setError(error.message);
@@ -136,7 +143,16 @@ export default function LoginPage() {
 
           <p className="text-center text-sm text-gray-600">
             アカウントをお持ちでない方は{" "}
-            <Link href="/signup" className="text-blue-600 hover:underline">
+            <Link
+              href="/signup"
+              // AI 接続の途中（?next= 付き）なら、登録画面にも戻り先を引き継ぐ
+              onClick={(e) => {
+                if (!window.location.search) return;
+                e.preventDefault();
+                router.push(`/signup?next=${encodeURIComponent(nextPath())}`);
+              }}
+              className="text-blue-600 hover:underline"
+            >
               新規登録
             </Link>
           </p>

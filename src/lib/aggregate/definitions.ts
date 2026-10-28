@@ -198,7 +198,7 @@ export const DATA_FLOW: readonly DataFlowRow[] = [
     operation: "ログイン",
     leaves: "メールアドレス・パスワード",
     via: "Supabase Auth（東京）",
-    storedAt: "Supabase（東京）。新規登録は止めています",
+    storedAt: "Supabase（東京）。新規登録はメールの確認つき",
     externalAi: "—",
     hosts: [],
   },
@@ -259,6 +259,14 @@ export const DATA_FLOW: readonly DataFlowRow[] = [
     hosts: [],
   },
   {
+    operation: "AI との接続（本人が許可したときだけ。mywork#882）",
+    leaves: "AI に聞いた内容に応じて、取引・カテゴリ・定期・月の集計（金額・日付・メモを含む）",
+    via: "本人の AI（Claude・ChatGPT など）→ /api/mcp（Vercel 東京 hnd1）→ Supabase（本人の行だけ）",
+    storedAt: "接続した AI のサービス側（その AI の会話の保存方針による）。こちらには呼び出し記録（道具の名前・成否・時刻）だけ",
+    externalAi: "本人が選んで許可した AI。設定 →「AI との接続」でいつでも解除できる",
+    hosts: [],
+  },
+  {
     operation: "定期の収入・支出の展開（毎日）",
     leaves: "—（サーバーの中だけ）",
     via: "Vercel Cron → 関数 → Supabase",
@@ -287,8 +295,8 @@ export const DATA_FLOW: readonly DataFlowRow[] = [
 
 /** どの操作でも外に出さないもの */
 export const NOT_SENT: readonly string[] = [
-  "金額・日付・取引の行（AI 提供元へは送らない）",
-  "メモの本文（AI 提供元へは送らない）",
+  "金額・日付・取引の行（レシート読み取りの AI 提供元へは送らない。本人が許可した「AI との接続」だけは別）",
+  "メモの本文（同上）",
   "レシートの写真の保存",
   "CSV ファイルの保存",
 ];
