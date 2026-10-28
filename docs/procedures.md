@@ -79,3 +79,22 @@
 | 定期の自動作成が止まった | `/api/health` の `cron` が false。Vercel → Cron Jobs の実行履歴、`CRON_SECRET` の有無 |
 | DB に繋がらない | Supabase のダッシュボードで休止していないか（休止なら Restore）。`DATABASE_URL` が 6543（Supavisor）か |
 | Vercel が Blocked・失敗 | ビルドログ `vercel inspect --logs <URL> --global-config ~/.config/vercel-personal`。直す PR を出して Rebase マージ |
+| AI からつながらない（401 が続く） | Supabase → Authentication → OAuth Server が Enable か、Site URL が本番か。`/.well-known/oauth-protected-resource/api/mcp` の `authorization_servers` が本番の Supabase か（7.） |
+
+## 7. AI との接続（/api/mcp、mywork#882）
+利用者が自分の AI（Claude・ChatGPT・Claude Code）に `https://kakebo-omega.vercel.app/api/mcp` を登録すると、OAuth（Supabase Auth の OAuth 2.1 サーバー）でログイン・同意して家計簿を読み書きできる。AI ができるのは読むこと・支出の追加・AI が直前に足した1件の取り消しだけ。
+
+| もの | 場所 |
+|---|---|
+| 窓口 | `src/app/api/mcp/route.ts`（道具は `src/lib/mcp/tools.ts`） |
+| 同意画面 | `/oauth/consent`（Supabase の Authorization path と同じ） |
+| 呼び出し記録・回数上限 | 表 `mcp_calls`（1人 1分60回・書き込み24時間200回。`src/lib/mcp/rate-limit.ts`） |
+| OAuth トークンで DB を直接触らせない守り | 全表の RESTRICTIVE ポリシー `no_oauth_client_direct_access`（**表を足したら同じものを付ける**。付け忘れは `tests/db/mcp-rls.test.ts` の R5 が落ちる） |
+
+- **本番の Auth 設定（本人の GUI）**: OAuth Server を Enable・Authorization path `/oauth/consent`・Dynamic Client Registration を ON／Site URL＝本番／Email の新規登録 ON・Confirm email ON／**Secure password change ON・Require current password when updating ON**（OAuth のトークンでも `/auth/v1/user` は呼べるため、AI 側にパスワードを変えさせない）
+- **何人が AI までつないだか**（広告の数字。金額は出ない）: Supabase の SQL Editor で
+  `select count(distinct user_id) as users, count(*) as calls from mcp_calls where created_at > now() - interval '14 days';`
+- **1人の接続を切る**: 本人なら 設定 →「AI との接続」→「解除」。管理側からは Supabase → Authentication → OAuth Apps で該当のクライアントを削除
+- **全員の AI 接続を止める（事故のとき）**: Supabase → Authentication → OAuth Server を Disable（新しい接続も既存のトークンの更新も止まる。発行済みのアクセストークンは最長1時間で切れる）。画面のログインには影響しない
+- **月次決算を Claude Code から行う**: `npx --yes tsx@4.23.15 scripts/mcp/connect.ts https://kakebo-omega.vercel.app <書き出す mcp-config.json>` → 出た URL を本人がブラウザで開いて「許可する」→ `claude -p "<決算の指示>" --mcp-config <json> --strict-mcp-config --allowedTools mcp__kakebo`。手順の全体は mywork の `dev/kakebo_next/docs/2026-10-28_MCPで月次決算をする手順.md`
+- ローカルで試す: `supabase start`（config.toml で OAuth Server・DCR は ON）→ アプリを 127.0.0.1:3000 で起動 → `scripts/mcp/demo.ts`（ダミーの10月を入れた利用者とトークンを作る）
