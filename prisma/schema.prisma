@@ -332,3 +332,35 @@ model McpCall {
   @@index([userId, createdAt(sort: Desc)], map: "mcp_calls_user_created_idx")
   @@map("mcp_calls")
 }
+
+// -----------------------------------------------------------------------------
+// lp_views / waitlist_signups — 広告の着地ページの閲覧数と事前登録（mywork#878）。
+// RLS 有効・ポリシー無し。読み書きは lib/admin-db.ts だけ
+// -----------------------------------------------------------------------------
+model LpView {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  viewedAt     DateTime @default(now()) @map("viewed_at") @db.Timestamptz
+  visitorId    String   @map("visitor_id")
+  utmSource    String?  @map("utm_source")
+  utmMedium    String?  @map("utm_medium")
+  utmCampaign  String?  @map("utm_campaign")
+  utmContent   String?  @map("utm_content")
+  referrerHost String?  @map("referrer_host")
+
+  @@index([visitorId, viewedAt(sort: Desc)], map: "lp_views_visitor_viewed_idx")
+  @@map("lp_views")
+}
+
+model WaitlistSignup {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email       String   @unique
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  visitorId   String?  @map("visitor_id")
+  utmSource   String?  @map("utm_source")
+  utmMedium   String?  @map("utm_medium")
+  utmCampaign String?  @map("utm_campaign")
+  utmContent  String?  @map("utm_content")
+
+  @@index([visitorId, createdAt(sort: Desc)], map: "waitlist_signups_visitor_created_idx")
+  @@map("waitlist_signups")
+}
