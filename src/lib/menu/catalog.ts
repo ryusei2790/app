@@ -30,6 +30,7 @@ export const CATALOG: Feature[] = [
   { id: "chat", label: "チャット", icon: "💬", href: "/chat", fixed: true, description: "このチャット。機能を探してメニューに足す" },
   { id: "settings", label: "設定", icon: "⚙️", href: "/settings", fixed: true, description: "口座・カテゴリー・書き出し（CSV・スプレッドシート）・アカウント" },
   { id: "dashboard", label: "ダッシュボード", icon: "📊", href: "/dashboard", description: "月ごとの収入・支出・カテゴリー別の内訳をグラフで見る" },
+  { id: "ask", label: "質問して集計", icon: "🔎", href: "/ask", description: "「今月の食費は？」「先月の支出の内訳」「直近3か月の外食を月別で」のように聞くと、決まったルールで読んで画面と同じ定義で計算する。AI には送らない" },
   { id: "review", label: "要確認", icon: "🔍", href: "/review", description: "カテゴリー未設定など確認が要る取引をまとめて直す" },
   { id: "import", label: "CSVインポート", icon: "📥", href: "/import", description: "他の家計簿アプリや銀行の CSV を取り込む。取り込みの取り消しもできる" },
   { id: "fixed-costs", label: "定期の収入・支出", icon: "🔁", href: "/fixed-costs", description: "家賃・給料・サブスクなど毎月決まった収入・支出を登録して自動で記録する" },
