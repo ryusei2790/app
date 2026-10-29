@@ -13,6 +13,9 @@ import { DATA_FLOW } from "@/lib/aggregate/definitions";
 
 const srcDir = path.resolve(__dirname, "../../src");
 
+/** 画面にリンクを置くだけで、家計簿のデータを何も送らないホスト（規約・プライバシーの問い合わせ先。mywork#878） */
+const LINK_ONLY_HOSTS = new Set(["frural.jp"]);
+
 /** 文字列リテラルの中の https:// のホスト名だけを拾う（コメントの URL は対象にしない） */
 const LITERAL_URL = /["'`]https?:\/\/([a-z0-9.-]+)[^"'`]*["'`]/gi;
 
@@ -36,6 +39,7 @@ describe("S13 外部の送信先はすべて「何が外に出るか」の表に
     // 少なくともレシート読み取りの送信先は見つかる（テスト自体が空振りしていないことの確認）
     expect([...found.keys()]).toContain("openrouter.ai");
     for (const [host, files] of found) {
+      if (LINK_ONLY_HOSTS.has(host)) continue;
       expect(declared.has(host), `${host}（${files.join(", ")}）が DATA_FLOW にありません`).toBe(true);
     }
   });

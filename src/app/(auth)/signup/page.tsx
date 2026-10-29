@@ -2,6 +2,7 @@
  * @file app/(auth)/signup/page.tsx
  * @description サインアップ（新規登録）ページ。
  * 登録後は確認メールを送信し、メール確認後にログイン可能になる。
+ * ?next=（AI 接続の同意画面から来たとき。mywork#882）があれば、確認後・登録後にそこへ戻す（中のパスだけ: lib/safe-next.ts）。
  */
 
 "use client";
@@ -10,6 +11,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { safeNextPath } from "@/lib/safe-next";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -19,6 +21,11 @@ export default function SignupPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  /** 登録後の戻り先。押したときに URL から読む（useSearchParams だと Suspense が要る） */
+  function nextPath() {
+    return safeNextPath(new URLSearchParams(window.location.search).get("next"));
+  }
 
   async function handleSignup(e: React.FormEvent) {
     e.preventDefault();
@@ -30,7 +37,7 @@ export default function SignupPage() {
       email,
       password,
       options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath())}`,
       },
     });
 
@@ -47,7 +54,7 @@ export default function SignupPage() {
 
     // メール確認を切っている環境（ローカル等）では、その場でログイン済みになるのでそのまま開く
     if (data.session) {
-      router.push("/calendar");
+      router.push(nextPath());
       router.refresh();
       return;
     }

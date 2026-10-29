@@ -39,6 +39,7 @@ model Profile {
   userLayouts      UserLayout[]
   chatUsages       ChatUsage[]
   featureRequests  FeatureRequest[]
+  mcpCalls         McpCall[]
 
   @@map("profiles")
 }
@@ -100,7 +101,7 @@ model Transaction {
   kind            String    @default("normal") // "normal" | "refund" | "transfer" | "loan"（取引の種類。lib/aggregate/definitions.ts）
   transactionDate DateTime  @map("transaction_date") @db.Date
   note            String?
-  source          String // "manual" | "csv" | "auto" | "api" | "receipt"
+  source          String // "manual" | "csv" | "auto" | "api" | "receipt"（"api" = 利用者の AI エージェントが /api/mcp で追加。mywork#882）
   csvImportId     String?   @map("csv_import_id") @db.Uuid // source='csv' の場合のみ
   importKey       String?   @map("import_key") // CSV の行の目印（lib/csv/import-key.ts）。利用者ごとに一意
   deletedAt       DateTime? @map("deleted_at") @db.Timestamptz // 論理削除
@@ -311,6 +312,25 @@ model FeatureRequest {
 
   @@index([userId, createdAt(sort: Desc)], map: "feature_requests_user_created_idx")
   @@map("feature_requests")
+}
+
+// -----------------------------------------------------------------------------
+// mcp_calls — AI エージェント（/api/mcp）からの道具の呼び出し記録（mywork#882）
+// 回数の上限と「AI 接続まで行った人数」を数えるためだけ。金額・メモなど中身は保存しない
+// -----------------------------------------------------------------------------
+model McpCall {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  clientId  String   @map("client_id")
+  tool      String
+  isWrite   Boolean  @default(false) @map("is_write")
+  ok        Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  profile Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt(sort: Desc)], map: "mcp_calls_user_created_idx")
+  @@map("mcp_calls")
 }
 
 // -----------------------------------------------------------------------------

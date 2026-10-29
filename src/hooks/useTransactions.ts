@@ -60,8 +60,9 @@ export function useTransactions({
     }
   }, [year, month, accountId, categoryId]);
 
+  // 読み込みは次のマイクロタスクで始める（effect の中で同期的に setState しない: react-hooks/set-state-in-effect）
   useEffect(() => {
-    fetchTransactions();
+    void Promise.resolve().then(fetchTransactions);
   }, [fetchTransactions]);
 
   /** 収支を新規作成する */
