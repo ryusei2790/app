@@ -4,7 +4,7 @@
  *
  * 上限: 1人 1日5枚・月30枚、アプリ全体 月3,000枚（環境変数で変えられる）。
  * 社長アカウント（OWNER_USER_IDS）は全体の上限から除き、全体の枚数にも数えない（本人決定 2026-10-08）。
- * 本人の1日・月の上限は社長にも効く。
+ * 社長は1日・月の上限もなし（本人決定 2026-10-30 mywork#878）。使った記録（費用の把握用）は残す。
  *
  * 使い方（レシート API）:
  *   const q = await reserveReceiptParse(user);      // 上限内なら予約（ここで1枚分を押さえる）
@@ -53,6 +53,9 @@ export function quotaMessage(reason: QuotaReason, limits: QuotaLimits = quotaLim
 
 type User = { id: string; email?: string };
 
+/** 社長の上限の代わり（DB 関数の integer に収まる最大値） */
+const UNLIMITED = 2147483647;
+
 export type ReserveResult =
   | { ok: true; logId: string }
   | { ok: false; reason: QuotaReason; message: string };
@@ -63,12 +66,14 @@ export type ReserveResult =
  */
 export async function reserveReceiptParse(user: User, opts: { now?: Date } = {}): Promise<ReserveResult> {
   const limits = quotaLimits();
+  const owner = isOwner(user);
   const r = await reserveReceiptParseRow({
     userId: user.id,
-    userMonth: limits.userMonth,
-    userDay: limits.userDay,
+    // 社長は DB 関数の判定に当たらない大きさを渡す（予約・記録の流れは一般ユーザーと同じ）
+    userMonth: owner ? UNLIMITED : limits.userMonth,
+    userDay: owner ? UNLIMITED : limits.userDay,
     globalMonth: limits.globalMonth,
-    exemptGlobal: isOwner(user),
+    exemptGlobal: owner,
     now: opts.now ?? new Date(),
   });
   if (r.logId) return { ok: true, logId: r.logId };
@@ -91,6 +96,8 @@ export interface ReceiptUsage {
   month: { used: number; limit: number; remaining: number };
   /** いま読み取りを使えるか（本人の残りがあり、全体も止まっていない） */
   available: boolean;
+  /** 社長アカウント（回数の上限なし）。画面は残り枚数の代わりに「上限なし」と出す */
+  unlimited: boolean;
 }
 
 /** 残り回数（画面の表示用） */
@@ -99,6 +106,7 @@ export async function getReceiptUsage(user: User, opts: { now?: Date } = {}): Pr
   const c = await countReceiptUsage(user.id, opts.now ?? new Date());
   const day = { used: c.usedDay, limit: limits.userDay, remaining: Math.max(0, limits.userDay - c.usedDay) };
   const month = { used: c.usedMonth, limit: limits.userMonth, remaining: Math.max(0, limits.userMonth - c.usedMonth) };
-  const globalOpen = isOwner(user) || c.usedGlobal < limits.globalMonth;
-  return { day, month, available: day.remaining > 0 && month.remaining > 0 && globalOpen };
+  if (isOwner(user)) return { day, month, available: true, unlimited: true };
+  const globalOpen = c.usedGlobal < limits.globalMonth;
+  return { day, month, available: day.remaining > 0 && month.remaining > 0 && globalOpen, unlimited: false };
 }

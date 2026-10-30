@@ -214,3 +214,25 @@ describe("記録の守り（S5 と同じ考え方）", () => {
     expect(rpc.error).not.toBeNull();
   });
 });
+
+describe("L7 社長アカウントは1日・月の上限もなし（mywork#878）", () => {
+  it("社長は同じ日に6枚目以降も読め、usage は unlimited", async () => {
+    const owner = await newUser("l7-owner");
+    process.env.OWNER_USER_IDS = owner.id;
+    for (let i = 0; i < 7; i++) expect((await readOne(owner, jst(`2032-01-10 1${i}:00`))).ok).toBe(true);
+    const u = await getReceiptUsage({ id: owner.id, email: owner.email }, { now: jst("2032-01-10 20:00") });
+    expect(u.unlimited).toBe(true);
+    expect(u.available).toBe(true);
+  });
+
+  it("一般ユーザーは今までどおり6枚目で止まり、unlimited は false", async () => {
+    const owner = await newUser("l7-owner2");
+    process.env.OWNER_USER_IDS = owner.id;
+    const normal = await newUser("l7-normal");
+    for (let i = 0; i < 5; i++) await readOne(normal, jst(`2032-02-10 1${i}:00`));
+    expect((await readOne(normal, jst("2032-02-10 20:00"))).ok).toBe(false);
+    const u = await getReceiptUsage({ id: normal.id, email: normal.email }, { now: jst("2032-02-10 20:00") });
+    expect(u.unlimited).toBe(false);
+    expect(u.available).toBe(false);
+  });
+});

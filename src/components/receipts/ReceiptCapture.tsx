@@ -33,7 +33,7 @@ export interface ParseResult {
 }
 
 interface Props {
-  usage: { day: { remaining: number }; month: { remaining: number }; available: boolean } | null;
+  usage: { day: { remaining: number }; month: { remaining: number }; available: boolean; unlimited?: boolean } | null;
   onParsed: (result: ParseResult) => void;
 }
 
@@ -112,7 +112,9 @@ export function ReceiptCapture({ usage, onParsed }: Props) {
     <div className="space-y-4">
       {usage && (
         <p className="text-xs text-gray-500" data-testid="receipt-remaining">
-          今日あと {usage.day.remaining} 枚 ／ 今月あと {usage.month.remaining} 枚
+          {usage.unlimited
+            ? "回数の上限なし（本人アカウント）"
+            : `今日あと ${usage.day.remaining} 枚 ／ 今月あと ${usage.month.remaining} 枚`}
         </p>
       )}
 
