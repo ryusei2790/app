@@ -11,6 +11,7 @@
 
 "use client";
 
+import { UpgradeButton } from "@/components/billing/UpgradeButton";
 import Link from "next/link";
 import { useRef, useState, useSyncExternalStore } from "react";
 import { compressImage } from "@/lib/image/compress";
@@ -33,7 +34,7 @@ export interface ParseResult {
 }
 
 interface Props {
-  usage: { day: { remaining: number }; month: { remaining: number }; available: boolean; unlimited?: boolean } | null;
+  usage: { day: { remaining: number }; month: { remaining: number }; available: boolean; unlimited?: boolean; canUpgrade?: boolean } | null;
   onParsed: (result: ParseResult) => void;
 }
 
@@ -45,6 +46,7 @@ export function ReceiptCapture({ usage, onParsed }: Props) {
   const [agree, setAgree] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [limitHit, setLimitHit] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
   function giveConsent() {
@@ -70,7 +72,10 @@ export function ReceiptCapture({ usage, onParsed }: Props) {
       form.set("image", small, "receipt.jpg");
       const res = await fetch("/api/v1/receipts/parse", { method: "POST", body: form, signal: ac.signal });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error?.message ?? "読み取りに失敗しました");
+      if (!res.ok) {
+        setLimitHit(json.error?.details?.canUpgrade === true);
+        throw new Error(json.error?.message ?? "読み取りに失敗しました");
+      }
       onParsed({ draft: json.data.draft, model: json.data.model });
     } catch (e) {
       if (ac.signal.aborted) setError("読み取りをやめました（回数は減っていません）。");
@@ -88,7 +93,7 @@ export function ReceiptCapture({ usage, onParsed }: Props) {
         <ul className="list-disc pl-5 space-y-1">
           <li>写真は読み取りのため AI の事業者（OpenRouter 経由で Google など、日本国外）に送られます。</li>
           <li>写真はこのアプリにも事業者にも保存されません。読み取った文字だけを、あなたが保存を押したときに記録します。</li>
-          <li>1日5枚・月30枚まで使えます。</li>
+          <li>1日5枚・月30枚まで使えます（有料プランは1日20枚・月300枚）。</li>
         </ul>
         <label className="flex items-center gap-2">
           <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} />
@@ -110,6 +115,7 @@ export function ReceiptCapture({ usage, onParsed }: Props) {
 
   return (
     <div className="space-y-4">
+      {limitHit && !exhausted && <UpgradeButton />}
       {usage && (
         <p className="text-xs text-gray-500" data-testid="receipt-remaining">
           {usage.unlimited
@@ -122,6 +128,7 @@ export function ReceiptCapture({ usage, onParsed }: Props) {
         <div className="rounded-xl bg-gray-100 p-4 text-sm text-gray-700">
           いまはレシート読み取りを使えません（上限に達しました）。
           <Link href="/calendar" className="ml-1 text-blue-600 underline">手入力する</Link>
+          {usage.canUpgrade && <div className="mt-3"><UpgradeButton /></div>}
         </div>
       ) : busy ? (
         <div className="rounded-xl border border-blue-200 bg-blue-50 p-6 text-center space-y-3" role="status">

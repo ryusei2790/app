@@ -21,7 +21,7 @@ import {
 /** アプリが使う表（public スキーマ）。新しい表を足したらここにも足す */
 const APP_TABLES = [
   "profiles", "accounts", "categories", "fixed_costs", "csv_imports", "transactions", "receipt_parse_logs", "receipts",
-  "budget_frames", "budget_rules", "feature_requests", "lp_views", "waitlist_signups",
+  "budget_frames", "budget_rules", "feature_requests", "lp_views", "waitlist_signups", "subscriptions",
 ];
 
 let A: TestUser;
@@ -249,6 +249,28 @@ describe("着地ページの表（mywork#878）はログイン利用者からも
     const sel = await B.client.from(table).select("*").limit(1);
     expect(sel.error).not.toBeNull();
     const ins = await B.client.from(table).insert({ email: "x@example.com", visitor_id: "x" });
+    expect(ins.error).not.toBeNull();
+  });
+});
+
+describe("subscriptions（mywork#970）は本人が読むだけ", () => {
+  it("A は自分の行だけ読め、書けない。B と未ログインからは見えない", async () => {
+    await adminSql(
+      "INSERT INTO subscriptions (user_id, stripe_customer_id, stripe_subscription_id, status) VALUES ($1, $2, $3, 'active')",
+      [A.id, `cus_rls_${A.id}`, `sub_rls_${A.id}`]
+    );
+    const own = await A.client.from("subscriptions").select("status");
+    expect(own.data).toEqual([{ status: "active" }]);
+    const other = await B.client.from("subscriptions").select("status");
+    expect(other.data ?? []).toEqual([]);
+    const anon = await anonClient().from("subscriptions").select("status");
+    expect(anon.data ?? []).toEqual([]);
+
+    const upd = await A.client.from("subscriptions").update({ status: "canceled" }).eq("user_id", A.id);
+    expect(upd.error).not.toBeNull();
+    const ins = await B.client.from("subscriptions").insert({
+      user_id: B.id, stripe_customer_id: "cus_x", stripe_subscription_id: "sub_x", status: "active",
+    });
     expect(ins.error).not.toBeNull();
   });
 });

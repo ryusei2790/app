@@ -90,6 +90,7 @@ export function LandingPage() {
         <footer className="flex justify-center gap-4 pb-4 text-xs text-gray-500">
           <Link href="/about/terms" className="hover:underline">利用規約</Link>
           <Link href="/about/privacy" className="hover:underline">プライバシー</Link>
+          <Link href="/about/legal" className="hover:underline">特定商取引法の表記</Link>
           <Link href="/login" className="hover:underline">ログイン</Link>
         </footer>
       </main>

@@ -14,12 +14,14 @@ import type { Account, Category } from "@/types/database";
 import { DataFlowTable } from "./DataFlowTable";
 import { DataPanel } from "./DataPanel";
 import { AiConnectionPanel } from "./AiConnectionPanel";
+import { PlanPanel } from "./PlanPanel";
 import { apiErrorMessage, errorMessage } from "@/lib/errors/api-error";
 
-type Tab = "accounts" | "categories" | "data" | "data-flow" | "ai";
+type Tab = "accounts" | "categories" | "plan" | "data" | "data-flow" | "ai";
 const TAB_LABELS: Record<Tab, string> = {
   accounts: "口座管理",
   categories: "カテゴリ管理",
+  plan: "プラン",
   data: "データと書き出し",
   "data-flow": "データの流れ",
   ai: "AI との接続",
@@ -31,14 +33,15 @@ const ACCOUNT_TYPES = [
   { value: "bank", label: "銀行口座" },
 ] as const;
 
-/** /settings#ai で「AI との接続」を開く（同意画面・MCP の案内からのリンク。mywork#882） */
+/** /settings#ai で「AI との接続」を開く（同意画面・MCP の案内からのリンク。mywork#882）。#plan は決済からの戻り先（mywork#970） */
+const HASH_TABS: Record<string, Tab> = { "#ai": "ai", "#plan": "plan" };
 function subscribeHash(onChange: () => void) {
   window.addEventListener("hashchange", onChange);
   return () => window.removeEventListener("hashchange", onChange);
 }
 
 export function SettingsView() {
-  const hashTab = useSyncExternalStore(subscribeHash, () => (window.location.hash === "#ai" ? "ai" : null), () => null);
+  const hashTab = useSyncExternalStore(subscribeHash, () => HASH_TABS[window.location.hash] ?? null, () => null);
   const [chosenTab, setTab] = useState<Tab | null>(null);
   const tab: Tab = chosenTab ?? hashTab ?? "accounts";
 
@@ -192,6 +195,7 @@ export function SettingsView() {
       </div>
 
       {/* ─── データと書き出し（mywork#425 第2弾） ─────────── */}
+      {tab === "plan" && <PlanPanel />}
       {tab === "data" && <DataPanel />}
 
       {/* ─── データの流れ（何が外に出るか。mywork#425 第1弾） ─────────── */}
