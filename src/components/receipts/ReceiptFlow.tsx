@@ -11,7 +11,7 @@ import { useEffect, useState } from "react";
 import { ReceiptCapture, type ParseResult } from "./ReceiptCapture";
 import { ReceiptReview } from "./ReceiptReview";
 
-type Usage = { day: { remaining: number }; month: { remaining: number }; available: boolean };
+type Usage = { day: { remaining: number }; month: { remaining: number }; available: boolean; unlimited?: boolean };
 
 export function ReceiptFlow() {
   const [parsed, setParsed] = useState<ParseResult | null>(null);
