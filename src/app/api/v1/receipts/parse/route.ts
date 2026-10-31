@@ -60,7 +60,7 @@ export async function POST(request: Request) {
 
   // 3. 回数を予約
   const quota = await reserveReceiptParse(user);
-  if (!quota.ok) return error("RATE_LIMITED", quota.message, 429, { reason: quota.reason });
+  if (!quota.ok) return error("RATE_LIMITED", quota.message, 429, { reason: quota.reason, canUpgrade: quota.canUpgrade });
 
   // 4. 読む
   try {

@@ -180,3 +180,31 @@ export async function getWaitlistReport(): Promise<{
     .sort((a, b) => (a.utmContent ?? "~").localeCompare(b.utmContent ?? "~"));
   return { signups, byContent };
 }
+
+// ─── 有料プラン（mywork#970）。書くのは署名検証済みの Webhook だけ ─────────────
+
+export interface SubscriptionRow {
+  userId: string;
+  stripeCustomerId: string;
+  stripeSubscriptionId: string;
+  status: string;
+  currentPeriodEnd: Date | null;
+}
+
+export async function getSubscriptionRow(userId: string): Promise<SubscriptionRow | null> {
+  return prisma.subscription.findUnique({
+    where: { userId },
+    select: {
+      userId: true,
+      stripeCustomerId: true,
+      stripeSubscriptionId: true,
+      status: true,
+      currentPeriodEnd: true,
+    },
+  });
+}
+
+export async function upsertSubscriptionRow(row: SubscriptionRow): Promise<void> {
+  const { userId, ...fields } = row;
+  await prisma.subscription.upsert({ where: { userId }, create: row, update: fields });
+}

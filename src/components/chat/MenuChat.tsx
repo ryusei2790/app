@@ -7,6 +7,7 @@
 "use client";
 
 import { useState } from "react";
+import { UpgradeButton } from "@/components/billing/UpgradeButton";
 import { useRouter } from "next/navigation";
 import type { LayoutItem } from "@/lib/menu/layout";
 
@@ -25,6 +26,7 @@ export function MenuChat() {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [limitHit, setLimitHit] = useState(false);
 
   async function send(text: string) {
     const t = text.trim();
@@ -44,6 +46,7 @@ export function MenuChat() {
       const json = await res.json();
       if (!res.ok) {
         setNotice(json.error?.message ?? "送れませんでした");
+        setLimitHit(json.error?.details?.canUpgrade === true);
         setMessages(messages); // 失敗した発言は取り下げて、入力欄に戻す
         setInput(t);
         return;
@@ -123,6 +126,7 @@ export function MenuChat() {
       </div>
 
       {notice && <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">{notice}</p>}
+      {limitHit && <div className="mt-2"><UpgradeButton /></div>}
 
       <form
         className="mt-3 flex gap-2"

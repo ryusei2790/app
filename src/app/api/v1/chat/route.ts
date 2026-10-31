@@ -1,10 +1,12 @@
 /**
  * @file api/v1/chat/route.ts
  * @description メニューのチャット（mywork#573）。会話を受け取り、AI の返事と変わったマイメニューを返す。
- * 1人1日30回まで（CHAT_QUOTA_USER_DAY で変えられる）。社長は上限なし。会話は保存しない。
+ * 1人1日30回まで（CHAT_QUOTA_USER_DAY で変えられる）。社長と有料プランは上限なし。会話は保存しない。
  */
 
 import { error, ok, readJsonBody, requireAuth } from "@/lib/api-helpers";
+import { isPaidUser } from "@/lib/billing/plan";
+import { billingConfigured } from "@/lib/billing/stripe";
 import { isOwner } from "@/lib/features";
 import { buildMenu, visibleLayout } from "@/lib/menu/layout";
 import { cleanHistory, getCreateMessage, runChat } from "@/lib/menu/chat";
@@ -30,8 +32,10 @@ export async function POST(request: Request) {
 
   const owner = isOwner(user);
   const used = await bumpChatUsage(user.id);
-  if (!owner && used > dailyLimit()) {
-    return error("RATE_LIMITED", `今日のチャットは上限（${dailyLimit()}回）に達しました。日本時間の0時に戻ります。`, 429);
+  if (!owner && used > dailyLimit() && !(await isPaidUser(user.id))) {
+    return error("RATE_LIMITED", `今日のチャットは上限（${dailyLimit()}回）に達しました。日本時間の0時に戻ります。`, 429, {
+      canUpgrade: billingConfigured(),
+    });
   }
 
   const before = visibleLayout(await loadLayout(user.id), { isOwner: owner });

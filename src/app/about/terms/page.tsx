@@ -1,6 +1,6 @@
 /**
  * @file app/about/terms/page.tsx
- * @description 利用規約（事前登録の段階のもの、mywork#878）。ログイン前でも読める。
+ * @description 利用規約（事前登録 mywork#878、有料プラン mywork#970）。ログイン前でも読める。
  */
 
 export const metadata = { title: "利用規約 — カレンダー家計簿" };
@@ -21,7 +21,10 @@ export default function TermsPage() {
       <p>本サービスの内容や公開の予定は、予告なく変更・中止することがあります。そのことで生じた損害について、運営は故意または重大な過失がある場合を除き責任を負いません。</p>
       <h2 className="text-base font-bold">5. 個人情報</h2>
       <p>取り扱いは<a href="/about/privacy" className="text-blue-600 underline">プライバシー</a>のとおりです。</p>
-      <h2 className="text-base font-bold">6. 問い合わせ</h2>
+      <h2 className="text-base font-bold">6. 有料プラン</h2>
+      <p>有料プランは月額300円（税込）で、申し込みの日から1か月ごとに、登録したクレジットカードへ自動で請求します。決済は Stripe が行い、運営はカード番号を受け取りません。</p>
+      <p>解約は設定の「プラン」からいつでもでき、支払い済みの期間の終わりまで使えます。日割りの返金はしません。価格を変えるときは事前にお知らせします。</p>
+      <h2 className="text-base font-bold">7. 問い合わせ</h2>
       <p><a href="https://frural.jp/contact" className="text-blue-600 underline">https://frural.jp/contact</a></p>
     </article>
   );

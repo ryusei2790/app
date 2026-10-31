@@ -351,6 +351,17 @@ model LpView {
   @@map("lp_views")
 }
 
+model Subscription {
+  userId               String    @id @map("user_id") @db.Uuid
+  stripeCustomerId     String    @unique @map("stripe_customer_id")
+  stripeSubscriptionId String    @unique @map("stripe_subscription_id")
+  status               String
+  currentPeriodEnd     DateTime? @map("current_period_end") @db.Timestamptz
+  updatedAt            DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("subscriptions")
+}
+
 model WaitlistSignup {
   id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   email       String   @unique
