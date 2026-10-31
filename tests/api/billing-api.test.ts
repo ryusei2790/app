@@ -147,6 +147,16 @@ describe("上限の切り替え", () => {
 describe("checkout", () => {
   const post = () => checkout.POST(new Request("http://x/api/stripe/checkout", { method: "POST" }));
 
+  it("past_due は申し込めず、カード更新の案内になる（二重課金を防ぐ）", async () => {
+    const u = await newUser("billing-past-due");
+    await handleStripeEvent(updated("sub_pd"), async () => sub(u, "sub_pd", "past_due"));
+    const usage = await getReceiptUsage(u);
+    expect(usage).toMatchObject({ paid: false, canUpgrade: false, canManage: true });
+    signInAs(u);
+    const res = await checkout.POST(new Request("http://localhost/api/stripe/checkout", { method: "POST" }));
+    expect(res.status).toBe(409);
+  });
+
   it("本人アカウントと有料の人は 409、未設定は 503", async () => {
     const u = await newUser("billing-checkout");
     signInAs({ id: u.id, email: u.email });

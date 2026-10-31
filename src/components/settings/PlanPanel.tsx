@@ -47,6 +47,9 @@ export function PlanPanel() {
           ? "レシート 1日20枚・月300枚、チャット無制限。"
           : "レシート 1日5枚・月30枚、チャット 1日30回。決済の直後は反映に数秒かかります。"}
       </p>
+      {!usage.unlimited && !usage.paid && !usage.canUpgrade && usage.canManage && (
+        <p className="text-xs text-amber-700">お支払いを確認できていません。下からカードを更新してください。</p>
+      )}
       {usage.canUpgrade && <UpgradeButton />}
       {usage.canManage && (
         <button type="button" onClick={openPortal} className="text-sm text-blue-600 underline">

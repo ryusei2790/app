@@ -17,7 +17,7 @@
 
 import { isOwner } from "@/lib/features";
 import { countReceiptUsage, finishReceiptParseRow, getSubscriptionRow, reserveReceiptParseRow } from "@/lib/admin-db";
-import { isPaidStatus, isPaidUser } from "@/lib/billing/plan";
+import { hasOpenSubscription, isPaidStatus, isPaidUser } from "@/lib/billing/plan";
 import { billingConfigured } from "@/lib/billing/stripe";
 
 export type QuotaReason = "user_day" | "user_month" | "global_month";
@@ -83,7 +83,8 @@ export async function reserveReceiptParse(user: User, opts: { now?: Date } = {})
   if (r.logId) return { ok: true, logId: r.logId };
   const reason = r.reason as QuotaReason;
   // 全体の上限は有料にしても解けないので案内しない
-  const canUpgrade = !paid && reason !== "global_month" && billingConfigured();
+  const open = hasOpenSubscription((await getSubscriptionRow(user.id))?.status);
+  const canUpgrade = !paid && !open && reason !== "global_month" && billingConfigured();
   return { ok: false, reason, message: quotaMessage(reason, limits), canUpgrade };
 }
 
@@ -128,7 +129,7 @@ export async function getReceiptUsage(user: User, opts: { now?: Date } = {}): Pr
     available: day.remaining > 0 && month.remaining > 0 && globalOpen,
     unlimited: false,
     paid,
-    canUpgrade: !paid && globalOpen && billingConfigured(),
+    canUpgrade: !paid && !hasOpenSubscription(sub?.status) && globalOpen && billingConfigured(),
     canManage: sub !== null,
   };
 }

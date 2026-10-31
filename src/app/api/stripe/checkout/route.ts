@@ -6,7 +6,7 @@
 
 import { error, ok, requireAuth } from "@/lib/api-helpers";
 import { getSubscriptionRow } from "@/lib/admin-db";
-import { isPaidStatus } from "@/lib/billing/plan";
+import { hasOpenSubscription } from "@/lib/billing/plan";
 import { billingConfigured, getStripe } from "@/lib/billing/stripe";
 import { isOwner } from "@/lib/features";
 
@@ -18,7 +18,9 @@ export async function POST(request: Request) {
   if (isOwner(user)) return error("CONFLICT", "このアカウントは回数の上限がありません", 409);
 
   const row = await getSubscriptionRow(user.id);
-  if (isPaidStatus(row?.status)) return error("CONFLICT", "すでに有料プランです", 409);
+  if (hasOpenSubscription(row?.status)) {
+    return error("CONFLICT", "すでに契約があります。設定の「プラン」からカードの変更や解約ができます", 409);
+  }
 
   const origin = new URL(request.url).origin;
   const session = await getStripe().checkout.sessions.create({
@@ -29,6 +31,10 @@ export async function POST(request: Request) {
     // 以後の Webhook は契約の metadata で本人を特定する
     subscription_data: { metadata: { user_id: user.id } },
     ...(row ? { customer: row.stripeCustomerId } : { customer_email: user.email }),
+    // 最終確認の画面に、自動で続くことと解約の条件を出す
+    custom_text: {
+      submit: { message: "毎月300円（税込）を自動で請求します。解約は設定の「プラン」からいつでもでき、支払い済みの期間の終わりまで使えます。" },
+    },
     success_url: `${origin}/settings#plan`,
     cancel_url: `${origin}/settings#plan`,
   });

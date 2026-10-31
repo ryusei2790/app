@@ -10,6 +10,14 @@ export function isPaidStatus(status: string | undefined): boolean {
   return status === "active" || status === "trialing";
 }
 
+/**
+ * 契約がまだ生きている。past_due は使えないが請求の再試行中なので、新しく申し込ませると二重課金になる。
+ * 申し込みボタンを止める判定に使い、カードの更新は Customer Portal へ案内する。
+ */
+export function hasOpenSubscription(status: string | undefined): boolean {
+  return status !== undefined && !["canceled", "incomplete_expired"].includes(status);
+}
+
 export async function isPaidUser(userId: string): Promise<boolean> {
   return isPaidStatus((await getSubscriptionRow(userId))?.status);
 }

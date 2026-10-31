@@ -32,7 +32,7 @@ function subscriptionIdOf(event: Stripe.Event): string | null {
 }
 
 async function syncSubscription(sub: Stripe.Subscription): Promise<void> {
-  // user_id は決済を始めるときに本人のセッションから入れた値（lib/billing/checkout）
+  // user_id は決済を始めるときに本人のセッションから入れた値（api/stripe/checkout）
   const userId = sub.metadata.user_id;
   const customerId = idOf(sub.customer);
   if (!userId || !UUID.test(userId) || !customerId) {
