@@ -9,12 +9,13 @@
  * 環境変数: DATABASE_URL（run.sh がキーチェーンから組み立てる）・AGE_RECIPIENT（age1…）・BACKUP_DIR・OWNER_ID（省略時は auth.users がちょうど1人ならその人）
  */
 
-import { mkdir, readdir, rename, unlink, writeFile } from "node:fs/promises";
+import { mkdir, rename, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { prisma } from "@/lib/prisma";
 import { withUserDb, isUuid } from "@/lib/db";
 import { buildBackup } from "@/lib/export/full-json";
 import { backupFileName, encryptBackup, selectToDelete } from "@/lib/backup/weekly";
+import { listDirBounded } from "@/lib/backup/list-dir";
 import { todayJst } from "@/lib/date/jst";
 
 function need(name: string): string {
@@ -50,12 +51,9 @@ async function main() {
   await writeFile(tmp, data);
   await rename(tmp, path.join(dir, name));
 
-  // launchd から起動した node は Drive フォルダの一覧を TCC に拒まれる（書き込みは通る。mywork#839）。
-  // 一覧が取れないときは古いファイルの整理だけ飛ばし、バックアップ自体は成功扱いにする
-  const names = await readdir(dir).catch((e) => {
-    if (e?.code === "EPERM" || e?.code === "EACCES") return null;
-    throw e;
-  });
+  // launchd から起動すると Drive フォルダの一覧は拒まれる（#839）か、返らず止まる（#1031）。
+  // 取れないときは古いファイルの整理だけ飛ばし、バックアップ自体は成功扱いにする
+  const names = await listDirBounded(dir);
   const remove = names ? selectToDelete(names, todayJst(now)) : [];
   for (const f of remove) await unlink(path.join(dir, f));
 
