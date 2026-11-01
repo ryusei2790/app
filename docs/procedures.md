@@ -59,6 +59,7 @@
 
 ## 5. バックアップ・監視の確認と復元（②④）
 - 定期バックアップ: 毎週日曜 10:00 `com.ryusei.kakebo-backup` → Drive `マイドライブ/家計簿バックアップ/YYYY-MM-DD_kakebo-full.json.age`。ログ `~/Library/Logs/kakebo-backup.log`
+- 古いファイルの整理: launchd からは Drive の一覧だけ取れない（書く・消すはできる）ので、書いたファイル名の台帳 `~/.config/kakebo-backup/written.txt` で選ぶ。フルディスクアクセスは与えない（mywork#1033）
 - バックアップの鮮度: 毎日 12:00 `com.ryusei.kakebo-backup-check`。最新が8日より古ければ俺待ち Issue
 - 見張り: 毎日 12:30 `com.ryusei.kakebo-monitor`（health・Vercel・バックアップ失敗）。駄目なら俺待ち Issue（同じ題名が開いていれば立てない）。ログ `~/Library/Logs/kakebo-monitor.log`
 - 動いているかの確認: `launchctl list | grep kakebo`（3つ出る）、`tail ~/Library/Logs/kakebo-*.log`

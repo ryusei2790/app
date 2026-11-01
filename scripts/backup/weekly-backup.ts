@@ -6,16 +6,17 @@
  *   3. 古いファイルを間引く（直近8本＋月初12か月）
  * DB は読むだけ。出力は件数とファイル名だけ（金額・メモは出さない、S11）。
  *
- * 環境変数: DATABASE_URL（run.sh がキーチェーンから組み立てる）・AGE_RECIPIENT（age1…）・BACKUP_DIR・OWNER_ID（省略時は auth.users がちょうど1人ならその人）
+ * 環境変数: DATABASE_URL（run.sh がキーチェーンから組み立てる）・AGE_RECIPIENT（age1…）・BACKUP_DIR・BACKUP_LEDGER（書いたファイル名の台帳）・OWNER_ID（省略時は auth.users がちょうど1人ならその人）
  */
 
-import { mkdir, rename, unlink, writeFile } from "node:fs/promises";
+import { mkdir, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { prisma } from "@/lib/prisma";
 import { withUserDb, isUuid } from "@/lib/db";
 import { buildBackup } from "@/lib/export/full-json";
 import { backupFileName, encryptBackup, selectToDelete } from "@/lib/backup/weekly";
-import { listDirBounded } from "@/lib/backup/list-dir";
+import { listDirBounded, removeFileBounded } from "@/lib/backup/list-dir";
+import { readLedger, writeLedger } from "@/lib/backup/ledger";
 import { todayJst } from "@/lib/date/jst";
 
 function need(name: string): string {
@@ -38,6 +39,7 @@ async function ownerId(): Promise<string> {
 async function main() {
   const recipient = need("AGE_RECIPIENT");
   const dir = need("BACKUP_DIR");
+  const ledger = need("BACKUP_LEDGER");
   const now = new Date();
   const userId = await ownerId();
 
@@ -51,13 +53,20 @@ async function main() {
   await writeFile(tmp, data);
   await rename(tmp, path.join(dir, name));
 
-  // launchd から起動すると Drive フォルダの一覧は拒まれる（#839）か、返らず止まる（#1031）。
-  // 取れないときは古いファイルの整理だけ飛ばし、バックアップ自体は成功扱いにする
-  const names = await listDirBounded(dir);
-  const remove = names ? selectToDelete(names, todayJst(now)) : [];
-  for (const f of remove) await unlink(path.join(dir, f));
+  // 書けたら先に台帳へ。以降の整理が失敗してもバックアップ自体は成功扱いにする
+  const known = [...(await readLedger(ledger)), name];
+  await writeLedger(ledger, known);
 
-  console.log(JSON.stringify({ ok: true, file: name, counts: backup.counts, deleted: remove, ...(names ? {} : { rotate: "skipped (no list permission)" }) }));
+  // launchd から起動すると Drive フォルダの一覧は拒まれる（#839）か、返らず止まる（#1031）ので、取れないときは台帳で選ぶ（#1033）
+  const listed = await listDirBounded(dir);
+  const names = [...new Set([...known, ...(listed ?? [])])];
+  const remove = selectToDelete(names, todayJst(now));
+  const deleted: string[] = [];
+  for (const f of remove) if (await removeFileBounded(path.join(dir, f))) deleted.push(f);
+  const failed = remove.filter((f) => !deleted.includes(f));
+  await writeLedger(ledger, names.filter((n) => !deleted.includes(n)));
+
+  console.log(JSON.stringify({ ok: true, file: name, counts: backup.counts, deleted, list: listed ? "drive" : "ledger", ...(failed.length ? { deleteFailed: failed } : {}) }));
 }
 
 main()

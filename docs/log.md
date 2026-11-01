@@ -21,3 +21,8 @@
 - 何を: 11/1 10:00 の launchd 実行が、暗号化ファイルを書いた後の readdir で11時間止まり、ok 行が出ず監視が失敗と判定した。一覧を ls の子プロセス＋30秒の時間制限に変えた
 - なぜ: launchd からの Drive の open(2) は EPERM（#839）だけでなく返らないことがある。node の readdir はスレッドプールで止まるので中からは切れない
 - 結果: 時間切れ・拒否は整理だけ飛ばして ok:true で終わる
+
+## 2026-11-01 tsx の固定と台帳での整理（mywork#1033）
+- 何を: tsx を devDependencies に完全固定し run.sh は node_modules/.bin/tsx を直接呼ぶ。古いファイルは台帳 ~/.config/kakebo-backup/written.txt と rm（時間制限つき）で消す
+- なぜ: npx は未固定の版を取得しうるので DATABASE_URL 入りの環境で使わない。launchd の一時ジョブで試すと Drive への書き込みと rm は成功し ls だけ返らなかった。TCC で bash や node に権限を与えると範囲が広いので台帳にした
+- 結果: 一覧が取れないときも整理が動く。削除の失敗はログの deleteFailed に出し、バックアップは成功扱い
