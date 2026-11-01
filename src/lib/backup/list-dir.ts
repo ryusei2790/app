@@ -31,3 +31,21 @@ export function listDirBounded(dir: string, timeoutMs = LIST_TIMEOUT_MS, command
     child.on("close", (code) => finish(code === 0 ? out.split("\n").filter(Boolean) : null));
   });
 }
+
+/** path を別プロセスの rm で消す。消せた・元から無いは true、失敗・時間切れは false（例外にはしない）。一覧と同じく Drive で止まっても待ち続けない */
+export function removeFileBounded(file: string, timeoutMs = LIST_TIMEOUT_MS, command = "/bin/rm"): Promise<boolean> {
+  return new Promise((resolve) => {
+    const child = spawn(command, ["-f", "--", file], { stdio: "ignore" });
+    const finish = (v: boolean) => {
+      clearTimeout(timer);
+      resolve(v);
+    };
+    const timer = setTimeout(() => {
+      child.kill("SIGKILL");
+      child.unref();
+      finish(false);
+    }, timeoutMs);
+    child.on("error", () => finish(false));
+    child.on("close", (code) => finish(code === 0));
+  });
+}

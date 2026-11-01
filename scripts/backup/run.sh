@@ -24,10 +24,12 @@ if [ "$(cat node_modules/.lock-hash 2>/dev/null)" != "$H" ]; then
   npm ci --silent && npx prisma generate >/dev/null && echo "$H" > node_modules/.lock-hash
 fi
 
+# tsx は package.json に固定した版だけを使う。npx は無ければ取得するので、DATABASE_URL 入りの環境では使わない（mywork#1033）
 DIR=$(ls -d "$HOME"/Library/CloudStorage/GoogleDrive-*/マイドライブ 2>/dev/null | head -1)
 [ -n "$DIR" ] || { echo "Google Drive の同期フォルダがありません"; exit 1; }
 PW=$(security find-generic-password -s kakebo-supabase-db -a postgres -w)
 DATABASE_URL="postgresql://postgres.vqimpbelkydklhuhhdpg:$(python3 -c 'import sys,urllib.parse;print(urllib.parse.quote(sys.argv[1],safe=""))' "$PW")@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres" \
 AGE_RECIPIENT="$(cat "$CONF/recipient.txt")" \
 BACKUP_DIR="$DIR/家計簿バックアップ" \
-  npx tsx --tsconfig tsconfig.json scripts/backup/weekly-backup.ts
+BACKUP_LEDGER="$CONF/written.txt" \
+  node_modules/.bin/tsx --tsconfig tsconfig.json scripts/backup/weekly-backup.ts
