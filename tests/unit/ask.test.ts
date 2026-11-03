@@ -133,6 +133,14 @@ describe("Q8 続けての質問", () => {
     expect(r.target.id).toBe("food");
     expect(r.groupBy).toBe("month");
   });
+  it("「今月の食費」の続きの「月別で」は直近6か月に広げる", () => {
+    const r = read("月別で", read("今月の食費はいくら？"));
+    expect(r.period).toEqual({ from: "2026-05", to: "2026-10", label: "直近6か月" });
+    expect(r.groupBy).toBe("month");
+  });
+  it("期間を書いた「今月を月別で」は広げない", () => {
+    expect(read("今月の食費を月別で").period.from).toBe("2026-10");
+  });
   it("直前が無ければ「内訳は？」は今月", () => {
     expect(read("内訳は？").period.from).toBe("2026-10");
   });
