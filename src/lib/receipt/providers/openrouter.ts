@@ -1,6 +1,6 @@
 /**
  * @file lib/receipt/providers/openrouter.ts
- * @description OpenRouter 経由で Claude Haiku 5.5（既定）や Gemini 3.1 Flash-Lite を呼ぶアダプタ。
+ * @description OpenRouter 経由で Claude Sonnet 5.5（既定）や Gemini 3.1 Flash-Lite を呼ぶアダプタ。
  *
  * 他人のレシートを送るので、OpenRouter の振り分け設定で次を必ず付ける（設計書 論点2）:
  *   - provider.order          … 使う提供元を固定（例: anthropic）

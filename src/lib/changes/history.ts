@@ -14,6 +14,11 @@ export interface ChangeEntry {
 
 export const CHANGES: ChangeEntry[] = [
   {
+    date: "2026-11-03",
+    title: "レシート読取を Claude Sonnet 5.5 に",
+    items: ["レシートの読み取りとチャットの AI を Claude Haiku 5.5 から Sonnet 5.5 に変更"],
+  },
+  {
     date: "2026-10-25",
     title: "本番アプリとして足りないものを足した（#764）",
     items: [

@@ -223,7 +223,7 @@ export const DATA_FLOW: readonly DataFlowRow[] = [
     leaves: "縮小した写真（位置情報などの EXIF は外す）",
     via: "Vercel の関数 → OpenRouter または Anthropic（米国）",
     storedAt: "写真は保存しない。記録は件数・トークン数だけ",
-    externalAi: "RECEIPT_PARSER で選ぶ。未設定なら何も送らない（本番は OpenRouter→Anthropic（Claude Haiku 5.5））",
+    externalAi: "RECEIPT_PARSER で選ぶ。未設定なら何も送らない（本番は Anthropic（Claude Sonnet 5.5））",
     hosts: ["openrouter.ai", "api.anthropic.com"],
   },
   {
@@ -287,7 +287,7 @@ export const DATA_FLOW: readonly DataFlowRow[] = [
     leaves: "質問文・語彙（カテゴリー名・費目名・定期の名前）・今日の日付",
     via: "Vercel の関数 → Anthropic（米国。学習に使わない）",
     storedAt: "質問文は保存しない。回数とトークン数だけ",
-    externalAi: "Claude Haiku 5.5（本人の設定で OFF にできる）",
+    externalAi: "Claude Sonnet 5.5（本人の設定で OFF にできる）",
     hosts: ["api.anthropic.com"],
     planned: true,
   },
