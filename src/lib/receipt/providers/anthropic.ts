@@ -1,6 +1,6 @@
 /**
  * @file lib/receipt/providers/anthropic.ts
- * @description Anthropic の API（Claude Haiku）を直接呼ぶアダプタ。OpenRouter が使えないときの逃げ道と、精度比較（G）用。
+ * @description Anthropic の API（Claude Sonnet 5.5）を直接呼ぶアダプタ。OpenRouter が使えないときの逃げ道と、精度比較（G）用。
  * 公式 SDK（@anthropic-ai/sdk）の messages.parse に、schema.ts と同じ形の構造化出力（zodOutputFormat）を指定する。
  * 応答の検査はほかの提供元と同じく schema.ts の toDraft で行うので、ここでは本文（JSON の文字列）をそのまま返す。
  * 利用者の情報（metadata.user_id など）は送らない（P9）。fetch を差し替えられるのはテストのため。

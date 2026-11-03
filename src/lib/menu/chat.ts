@@ -1,6 +1,6 @@
 /**
  * @file lib/menu/chat.ts
- * @description メニューのチャット（mywork#573）。Claude Haiku 5.5（Anthropic 直）に機能カタログと tool を渡し、
+ * @description メニューのチャット（mywork#573）。Claude Sonnet 5.5（Anthropic 直）に機能カタログと tool を渡し、
  * 「ダッシュボード出して」のような頼みをマイメニューの変更に変える。
  *
  * - tool は並びを変えるものだけ（applyTool を通るので、カタログに無い id・固定の機能は拒まれる）

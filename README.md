@@ -29,7 +29,7 @@
 | 機能 | 説明 |
 |------|------|
 | 📅 **カレンダー**（ホーム） | 日ごとの収支をカレンダーで表示。日付を押してその日の取引を見る・追加する |
-| 📷 **レシート** | レシートを撮ると AI（Claude Haiku）が読み取り、確認して登録。手入力もここから |
+| 📷 **レシート** | レシートを撮ると AI（Claude Sonnet 5.5）が読み取り、確認して登録。手入力もここから |
 | 📋 **収支一覧** | 取引の検索・編集・削除 |
 | 💬 **チャット** | 「ダッシュボード出して」でマイメニューに機能を足す・外す・並べ替える。無い機能は要望として送れる |
 | 📥 **CSV インポート** | 家計簿アプリ形式（確認画面つき・重複は増えない）とエポス・セゾンの明細。取り込みの取り消しも可 |
@@ -298,7 +298,7 @@ npm test && npm run test:db
 | 変数 | 用途 | 既定 |
 |---|---|---|
 | `RECEIPT_PARSER` | レシート読み取りの提供元 `mock` / `openrouter` / `anthropic` | 開発は `mock`。本番で未設定ならエラー |
-| `RECEIPT_MODEL` | 例 `anthropic/claude-haiku-5.5`（openrouter）、`claude-haiku-5-5`（anthropic） | 左の例 |
+| `RECEIPT_MODEL` | 例 `anthropic/claude-sonnet-5.5`（openrouter）、`claude-sonnet-5-5`（anthropic） | 左の例 |
 | `RECEIPT_PROVIDER_ORDER` | OpenRouter で固定する提供元（カンマ区切り） | `anthropic` |
 | `OPENROUTER_API_KEY` / `ANTHROPIC_API_KEY` | 提供元の鍵。**公開版専用のキーに使用額の上限を付けて使う** | なし |
 | `RECEIPT_QUOTA_USER_DAY` / `_USER_MONTH` / `_GLOBAL_MONTH` | 読み取りの上限 | 5 / 30 / 3000 |

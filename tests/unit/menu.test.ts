@@ -93,7 +93,7 @@ describe("M2 マイメニューの tool", () => {
 });
 
 function msg(content: Anthropic.ContentBlock[], stop: Anthropic.StopReason): Anthropic.Message {
-  return { id: "m", type: "message", role: "assistant", model: "claude-haiku-5-5", content, stop_reason: stop, stop_sequence: null, usage: { input_tokens: 1, output_tokens: 1 } } as unknown as Anthropic.Message;
+  return { id: "m", type: "message", role: "assistant", model: "claude-sonnet-5-5", content, stop_reason: stop, stop_sequence: null, usage: { input_tokens: 1, output_tokens: 1 } } as unknown as Anthropic.Message;
 }
 const toolUse = (id: string, name: string, input: unknown) => ({ type: "tool_use", id, name, input }) as Anthropic.ContentBlock;
 const text = (t: string) => ({ type: "text", text: t, citations: null }) as Anthropic.ContentBlock;
