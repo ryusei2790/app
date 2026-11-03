@@ -13,6 +13,8 @@
 export const MAX_QUESTION = 200;
 /** 期間の上限（月数）。集計で読む行を抑える */
 export const MAX_PERIOD_MONTHS = 13;
+/** 期間を言わずに「月別で」と聞かれたときに見る月数 */
+export const MONTHLY_DEFAULT = 6;
 
 export interface Reading {
   flow: "expense" | "income";
@@ -217,6 +219,13 @@ export function readQuestion(question: string, vocab: Vocab, previous?: Reading)
     target: target ?? previous?.target ?? { type: "all", name: "支出全体" },
     measure: measure ?? (target ? "sum" : previous?.measure ?? "sum"),
   };
+  // 月別なのに期間が1か月（「今月の食費」の続きの「月別で」など）だと棒が1本しか出ない。
+  // 期間が書かれていなければ、その月までの直近 MONTHLY_DEFAULT か月に広げる（mywork#229 子 2026-11-03）
+  if (groupBy === "month" && period === null && reading.period.from === reading.period.to) {
+    const to = reading.period.to;
+    const from = addMonths(to, -(MONTHLY_DEFAULT - 1));
+    reading.period = { from, to, label: to === thisMonth ? `直近${MONTHLY_DEFAULT}か月` : `${monthLabel(from)}〜${monthLabel(to)}` };
+  }
   if (groupBy) reading.groupBy = groupBy;
   if (compare) reading.compare = true;
   return { ok: true, reading };
