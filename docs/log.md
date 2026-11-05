@@ -31,3 +31,6 @@
 - 何を: catalog.ts を「標準3つ（手入力 /entry・レシート・今月の決算 /closing）＋常設（チャット・設定）＋拡張機能」に。カレンダー・収支一覧は拡張機能へ。ホーム /start（大きいボタン3つ＋拡張機能＋右下チャット）、拡張機能の ON/OFF・並べ替え画面 /extensions（PUT /api/v1/menu を流用）、ログイン後・PWA の起動先を /start に。migration で既存ユーザーに home・transactions を先頭に入れる
 - なぜ: 本人「メニューがぐちゃぐちゃ。標準は3つだけ、他は消さずに拡張機能」。設計 Q1〜Q8 は本人「全部推し」（#1150）
 - 結果: 決算は場所だけ（提案ボットは第2弾）。機能は1つも消していない（OFF でも URL・API・cron は動く）
+
+## 2026-11-05 第2弾の反映（dev-4）
+- 本人 A（#1150）。migration dry-run は closing_reports 1本。`supabase db push` が自動モードで拒否→本人に実行を依頼し、マージは migration 後に回した（表が無いと決算画面が落ちるため）
