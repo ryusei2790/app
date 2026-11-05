@@ -8,7 +8,7 @@
  * ここでは「/ で始まり、// や /\ で始まらず、制御文字を含まない」パスだけを通し、それ以外は既定の戻り先にする。
  */
 
-export const DEFAULT_NEXT = "/calendar";
+export const DEFAULT_NEXT = "/start";
 
 export function safeNextPath(next: string | null | undefined, fallback = DEFAULT_NEXT): string {
   if (typeof next !== "string" || next.length === 0 || next.length > 2000) return fallback;

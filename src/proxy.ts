@@ -57,7 +57,8 @@ export async function proxy(request: NextRequest) {
     request.nextUrl.pathname.startsWith("/settings") ||
     request.nextUrl.pathname.startsWith("/receipts") ||
     request.nextUrl.pathname.startsWith("/review") ||
-    request.nextUrl.pathname.startsWith("/budget");
+    request.nextUrl.pathname.startsWith("/budget") ||
+    ["/start", "/entry", "/closing", "/extensions", "/chat"].some((p) => request.nextUrl.pathname.startsWith(p));
   // /about/definitions（数字の定義）はログイン前でも読める（mywork#425 第1弾）
 
   if (!user && isProtectedRoute) {

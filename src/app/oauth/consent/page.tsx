@@ -40,7 +40,7 @@ function ErrorView({ message }: { message: string }) {
       <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">
         {message}
       </p>
-      <Link href="/calendar" className="block text-center text-sm text-blue-600 hover:underline">
+      <Link href="/start" className="block text-center text-sm text-blue-600 hover:underline">
         家計簿へ戻る
       </Link>
     </Shell>

@@ -1,6 +1,6 @@
 /**
  * @file app/page.tsx
- * @description トップページ。ログイン済みなら /calendar へ、未ログインなら広告の着地ページ（mywork#878）を出す。
+ * @description トップページ。ログイン済みなら /start（標準3つの画面、mywork#1150）へ、未ログインなら広告の着地ページ（mywork#878）を出す。
  * proxy.ts の保護対象に / は入っていないので、未ログインでもここまで来る（UTM のクエリも落ちない）。
  */
 
@@ -21,6 +21,6 @@ export const metadata: Metadata = {
 };
 
 export default async function Home() {
-  if (await getAuthUser()) redirect("/calendar");
+  if (await getAuthUser()) redirect("/start");
   return <LandingPage />;
 }

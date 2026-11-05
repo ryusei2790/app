@@ -54,7 +54,7 @@ export function ReceiptReview({ draft, model, onSaved, onRetake }: Props) {
         </div>
         <div className="flex gap-2">
           <button type="button" onClick={onRetake} className="flex-1 rounded-lg border border-gray-300 py-2 text-sm">撮り直す</button>
-          <Link href="/calendar" className="flex-1 rounded-lg bg-blue-600 py-2 text-center text-sm font-medium text-white">手入力する</Link>
+          <Link href="/entry" className="flex-1 rounded-lg bg-blue-600 py-2 text-center text-sm font-medium text-white">手入力する</Link>
         </div>
       </div>
     );

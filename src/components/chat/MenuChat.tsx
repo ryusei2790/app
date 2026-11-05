@@ -78,7 +78,7 @@ export function MenuChat() {
     <div className="mx-auto flex h-full max-w-2xl flex-col p-4">
       <h1 className="text-lg font-bold text-gray-900">💬 チャット</h1>
       <p className="mt-1 text-xs text-gray-500">
-        欲しい機能を聞くと、メニューの「マイメニュー」に追加します。置く順番・アイコン・名前も変えられます。
+        欲しい機能を聞くと、メニューの「拡張機能」に追加します。置く順番・アイコン・名前も変えられます。
       </p>
 
       <div className="mt-4 flex-1 space-y-3 overflow-y-auto" aria-live="polite">

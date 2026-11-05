@@ -26,3 +26,8 @@
 - 何を: tsx を devDependencies に完全固定し run.sh は node_modules/.bin/tsx を直接呼ぶ。古いファイルは台帳 ~/.config/kakebo-backup/written.txt と rm（時間制限つき）で消す
 - なぜ: npx は未固定の版を取得しうるので DATABASE_URL 入りの環境で使わない。launchd の一時ジョブで試すと Drive への書き込みと rm は成功し ls だけ返らなかった。TCC で bash や node に権限を与えると範囲が広いので台帳にした
 - 結果: 一覧が取れないときも整理が動く。削除の失敗はログの deleteFailed に出し、バックアップは成功扱い
+
+## 2026-11-05 標準3つ＋拡張機能（mywork#1150 第1弾）
+- 何を: catalog.ts を「標準3つ（手入力 /entry・レシート・今月の決算 /closing）＋常設（チャット・設定）＋拡張機能」に。カレンダー・収支一覧は拡張機能へ。ホーム /start（大きいボタン3つ＋拡張機能＋右下チャット）、拡張機能の ON/OFF・並べ替え画面 /extensions（PUT /api/v1/menu を流用）、ログイン後・PWA の起動先を /start に。migration で既存ユーザーに home・transactions を先頭に入れる
+- なぜ: 本人「メニューがぐちゃぐちゃ。標準は3つだけ、他は消さずに拡張機能」。設計 Q1〜Q8 は本人「全部推し」（#1150）
+- 結果: 決算は場所だけ（提案ボットは第2弾）。機能は1つも消していない（OFF でも URL・API・cron は動く）
