@@ -37,22 +37,31 @@ function monthLabel(m: string) {
   return `${y}年${Number(mm)}月`;
 }
 
+async function fetchClosing(m: string | null): Promise<ClosingData> {
+  const r = await fetch(`/api/v1/closing${m ? `?month=${m}` : ""}`);
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error?.message ?? "読み込めませんでした");
+  return j.data;
+}
+
 export function ClosingView() {
   const [month, setMonth] = useState<string | null>(null);
   const [data, setData] = useState<ClosingData | null>(null);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
+  /** 決算の状態を読み直す（作った後・決算日を変えた後にも使う） */
   const load = useCallback(async (m: string | null) => {
-    const r = await fetch(`/api/v1/closing${m ? `?month=${m}` : ""}`);
-    const j = await r.json();
-    if (!r.ok) throw new Error(j.error?.message ?? "読み込めませんでした");
-    setData(j.data);
+    const j = await fetchClosing(m);
+    setData(j);
   }, []);
 
   useEffect(() => {
-    load(month).catch((e) => setNotice(e.message));
-  }, [load, month]);
+    // setState は fetch の後（非同期）でだけ呼ぶ（react-hooks/set-state-in-effect）
+    fetchClosing(month)
+      .then(setData)
+      .catch((e: Error) => setNotice(e.message));
+  }, [month]);
 
   async function generate() {
     if (!data) return;
