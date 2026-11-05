@@ -40,6 +40,8 @@ model Profile {
   chatUsages       ChatUsage[]
   featureRequests  FeatureRequest[]
   mcpCalls         McpCall[]
+  closingSetting   ClosingSetting?
+  closingReports   ClosingReport[]
 
   @@map("profiles")
 }
@@ -363,4 +365,36 @@ model WaitlistSignup {
 
   @@index([visitorId, createdAt(sort: Desc)], map: "waitlist_signups_visitor_created_idx")
   @@map("waitlist_signups")
+}
+
+// -----------------------------------------------------------------------------
+// closing_settings / closing_reports — 決算日の提案ボット（mywork#1150 第2弾）
+// -----------------------------------------------------------------------------
+model ClosingSetting {
+  userId     String   @id @map("user_id") @db.Uuid
+  /// 1〜28。null は月末（既定）
+  closingDay Int?     @map("closing_day") @db.SmallInt
+  updatedAt  DateTime @default(now()) @map("updated_at") @db.Timestamptz
+
+  profile Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("closing_settings")
+}
+
+model ClosingReport {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  month        String
+  markdown     String
+  model        String?
+  inputTokens  Int?     @map("input_tokens")
+  outputTokens Int?     @map("output_tokens")
+  generations  Int      @default(1)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime @default(now()) @map("updated_at") @db.Timestamptz
+
+  profile Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, month])
+  @@map("closing_reports")
 }

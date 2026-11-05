@@ -14,6 +14,15 @@ export interface ChangeEntry {
 
 export const CHANGES: ChangeEntry[] = [
   {
+    date: "2026-11-06",
+    title: "今月の決算の提案（#1150）",
+    items: [
+      "「🧾 今月の決算」で、月の集計から AI が今月のまとめ・来月の目標・配分・気をつける点・使いすぎ注意を提案",
+      "決算日を設定できる（既定は月末）。提案は月ごとに保存して後から読める",
+      "AI に渡すのは月の集計だけ（取引のメモ・店名は渡さない）",
+    ],
+  },
+  {
     date: "2026-11-03",
     title: "レシート読取を Claude Sonnet 5.5 に",
     items: ["レシートの読み取りとチャットの AI を Claude Haiku 5.5 から Sonnet 5.5 に変更"],
