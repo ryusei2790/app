@@ -24,6 +24,7 @@ export interface DeleteAllCounts {
   csv_imports: number;
   categories: number;
   accounts: number;
+  survey_rounds: number;
 }
 
 /**
@@ -33,6 +34,8 @@ export interface DeleteAllCounts {
  */
 export async function deleteAllData(db: UserDb, userId: string): Promise<DeleteAllCounts> {
   const where = { userId };
+  // アンケート（mywork#1150 第3弾）: 回を消すと設問・回答も CASCADE で消える。保持の約束「全削除で即削除」
+  const surveyRounds = await db.surveyRound.deleteMany({ where });
   const receipts = await db.receipt.deleteMany({ where });
   const transactions = await db.transaction.deleteMany({ where });
   const budgetRules = await db.budgetRule.deleteMany({ where });
@@ -50,5 +53,6 @@ export async function deleteAllData(db: UserDb, userId: string): Promise<DeleteA
     csv_imports: csvImports.count,
     categories: categories.count,
     accounts: accounts.count,
+    survey_rounds: surveyRounds.count,
   };
 }
