@@ -1,9 +1,11 @@
 // kakebo ウィジェット（Scriptable 用）— 今月の収入・支出・合計を iPhone のホームに出す（mywork#967）
 // 貼り付け手順: docs/2026-10-30_iPhoneウィジェット_貼り付け手順.md
-// トークンはこのファイルに書かない。初回に Scriptable アプリで実行すると入力欄が出て、iPhone の Keychain に保存する。
+// トークンはこのファイルに書かない。Mac が iCloud の Scriptable フォルダに置いた kakebo-widget.json（{"token": "..."}）があれば
+// 初回実行時に Keychain へ移してファイルを消す。無ければ Scriptable アプリで実行したとき入力欄が出て Keychain に保存する。
 
 const API_URL = "https://kakebo-omega.vercel.app/api/v1/widget/summary";
 const KEY = "kakebo_widget_token";
+const TOKEN_FILE = "kakebo-widget.json";
 
 const COLORS = {
   bg: Color.dynamic(new Color("#ffffff"), new Color("#1c1c1e")),
@@ -26,7 +28,25 @@ async function askToken() {
   return t || null;
 }
 
+// iCloud の Scriptable フォルダに置かれたトークンを Keychain に移し、ファイルは消す（平文を残さない）
+async function tokenFromICloud() {
+  try {
+    const fm = FileManager.iCloud();
+    const path = fm.joinPath(fm.documentsDirectory(), TOKEN_FILE);
+    if (!fm.fileExists(path)) return null;
+    await fm.downloadFileFromiCloud(path);
+    const t = String(JSON.parse(fm.readString(path)).token || "").trim();
+    if (t) Keychain.set(KEY, t);
+    fm.remove(path);
+    return t || null;
+  } catch (e) {
+    return null;
+  }
+}
+
 async function getToken() {
+  const fromFile = await tokenFromICloud();
+  if (fromFile) return fromFile;
   if (Keychain.contains(KEY)) return Keychain.get(KEY);
   return config.runsInApp ? await askToken() : null;
 }
