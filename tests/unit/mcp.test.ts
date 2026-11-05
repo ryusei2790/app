@@ -125,9 +125,9 @@ describe("U5 ログイン後の戻り先", () => {
     expect(safeNextPath("/oauth/consent?authorization_id=abc")).toBe("/oauth/consent?authorization_id=abc");
     expect(safeNextPath("/settings#ai")).toBe("/settings#ai");
   });
-  it("外へ出るものは既定の /calendar に", () => {
+  it("外へ出るものは既定の /start に", () => {
     for (const bad of ["https://evil.example", "//evil.example", "/\\evil.example", "@evil.example", "evil", "", null, undefined, "/\nx", "javascript:alert(1)"]) {
-      expect(safeNextPath(bad as string)).toBe("/calendar");
+      expect(safeNextPath(bad as string)).toBe("/start");
     }
   });
 });

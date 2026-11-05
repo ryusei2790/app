@@ -1,6 +1,6 @@
 /**
  * @file components/layout/NavList.tsx
- * @description メニューの中身（固定の5つ＋マイメニュー）。Sidebar と MobileNav で同じものを出す（mywork#573）。
+ * @description メニューの中身（標準3つ＋常設＋拡張機能（mywork#1150））。Sidebar と MobileNav で同じものを出す（mywork#573）。
  * 固定の5つは全員同じ並びで、マイメニューは本人がチャットで選んだ機能だけ。空ならチャットへの案内を出す。
  */
 
@@ -37,7 +37,7 @@ export function NavList({ menu, onNavigate }: { menu: NavMenu; onNavigate?: () =
           <Item key={item.id} item={item} onNavigate={onNavigate} />
         ))}
       </ul>
-      <p className="mt-4 px-3 pb-1 text-xs font-semibold text-gray-400">マイメニュー</p>
+      <p className="mt-4 px-3 pb-1 text-xs font-semibold text-gray-400">拡張機能</p>
       {menu.mine.length > 0 ? (
         <ul className="space-y-0.5" data-testid="my-menu">
           {menu.mine.map((item) => (
@@ -45,8 +45,11 @@ export function NavList({ menu, onNavigate }: { menu: NavMenu; onNavigate?: () =
           ))}
         </ul>
       ) : (
-        <p className="px-3 py-1 text-xs text-gray-400">💬 チャットで「〇〇ある？」と聞くと、ここに機能を追加できます</p>
+        <p className="px-3 py-1 text-xs text-gray-400">💬 チャットで「〇〇ある？」と聞くか、下から追加できます</p>
       )}
+      <Link href="/extensions" onClick={onNavigate} className="mt-1 block px-3 py-2 text-sm text-blue-600 hover:underline" data-testid="add-extension">
+        ＋ 拡張機能を追加
+      </Link>
     </>
   );
 }

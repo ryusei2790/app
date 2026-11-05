@@ -28,7 +28,7 @@ function toMenuItem(f: Feature, item?: LayoutItem): MenuItem {
   return { id: f.id, href: f.href, label: item?.label ?? f.label, icon: item?.icon ?? f.icon };
 }
 
-/** 画面に出すメニュー。固定の5つ＋マイメニュー（カタログから消えた機能・見えない機能は飛ばす） */
+/** 画面に出すメニュー。標準3つ＋常設2つ（fixed）＋拡張機能（mine）（カタログから消えた機能・見えない機能は飛ばす） */
 export function buildMenu(layout: LayoutItem[], { isOwner }: { isOwner: boolean }) {
   const fixed = FIXED_FEATURES.map((f) => toMenuItem(f));
   const mine = layout.flatMap((item) => {
@@ -55,7 +55,7 @@ function checkFeature(id: unknown, isOwner: boolean): Feature | string {
   if (typeof id !== "string") return "機能の id がありません";
   const f = findFeature(id, { isOwner });
   if (!f) return `「${id}」という機能はありません`;
-  if (f.fixed) return `「${f.label}」は初期画面の機能なので変えられません`;
+  if (f.fixed) return `「${f.label}」は標準機能（または常設）なので変えられません`;
   return f;
 }
 
@@ -89,7 +89,7 @@ export function applyTool(
     case "add_feature": {
       const f = checkFeature(input.id, isOwner);
       if (typeof f === "string") return { ok: false, message: f };
-      if (layout.some((i) => i.featureId === f.id)) return { ok: false, message: `「${f.label}」はもうマイメニューにあります` };
+      if (layout.some((i) => i.featureId === f.id)) return { ok: false, message: `「${f.label}」はもう拡張機能に入っています` };
       const icon = cleanIcon(input.icon);
       const label = cleanLabel(input.label);
       if (icon instanceof Error) return { ok: false, message: icon.message };
@@ -98,13 +98,13 @@ export function applyTool(
       const pos = typeof input.position === "number" && Number.isInteger(input.position) ? input.position - 1 : layout.length;
       const next = [...layout];
       next.splice(Math.max(0, Math.min(pos, layout.length)), 0, item);
-      return { ok: true, layout: next, message: `「${f.label}」をマイメニューの${next.indexOf(item) + 1}番目に追加しました` };
+      return { ok: true, layout: next, message: `「${f.label}」を拡張機能の${next.indexOf(item) + 1}番目に追加しました` };
     }
     case "update_feature": {
       const f = checkFeature(input.id, isOwner);
       if (typeof f === "string") return { ok: false, message: f };
       const idx = layout.findIndex((i) => i.featureId === f.id);
-      if (idx < 0) return { ok: false, message: `「${f.label}」はマイメニューにありません。先に追加してください` };
+      if (idx < 0) return { ok: false, message: `「${f.label}」は拡張機能に入っていません。先に追加してください` };
       const icon = cleanIcon(input.icon);
       const label = cleanLabel(input.label);
       if (icon instanceof Error) return { ok: false, message: icon.message };
@@ -120,18 +120,18 @@ export function applyTool(
     case "remove_feature": {
       const f = checkFeature(input.id, isOwner);
       if (typeof f === "string") return { ok: false, message: f };
-      if (!layout.some((i) => i.featureId === f.id)) return { ok: false, message: `「${f.label}」はマイメニューにありません` };
-      return { ok: true, layout: layout.filter((i) => i.featureId !== f.id), message: `「${f.label}」をマイメニューから外しました` };
+      if (!layout.some((i) => i.featureId === f.id)) return { ok: false, message: `「${f.label}」は拡張機能に入っていません` };
+      return { ok: true, layout: layout.filter((i) => i.featureId !== f.id), message: `「${f.label}」を拡張機能から外しました` };
     }
     case "reorder": {
       const ids = input.ids;
       if (!Array.isArray(ids) || ids.some((id) => typeof id !== "string")) return { ok: false, message: "並び順が不正です" };
       const current = layout.map((i) => i.featureId);
       if (ids.length !== current.length || new Set(ids).size !== ids.length || ids.some((id) => !current.includes(id))) {
-        return { ok: false, message: "並び順にはマイメニューの機能を全部1回ずつ入れてください" };
+        return { ok: false, message: "並び順には拡張機能を全部1回ずつ入れてください" };
       }
       const next = ids.map((id) => layout.find((i) => i.featureId === id)!);
-      return { ok: true, layout: next, message: "マイメニューを並べ替えました" };
+      return { ok: true, layout: next, message: "拡張機能を並べ替えました" };
     }
     default:
       return { ok: false, message: `不明な操作です: ${name}` };
@@ -161,7 +161,7 @@ export function validateLayout(raw: unknown, { isOwner }: { isOwner: boolean }):
 export function describeCatalog(layout: LayoutItem[], { isOwner }: { isOwner: boolean }): string {
   return catalogFor({ isOwner })
     .map((f) => {
-      const state = f.fixed ? "初期画面（変更不可）" : layout.some((i) => i.featureId === f.id) ? "マイメニューに追加済み" : "未追加";
+      const state = f.standard ? "標準機能（変更不可）" : f.shell ? "常設（変更不可）" : layout.some((i) => i.featureId === f.id) ? "拡張機能に追加済み" : "未追加";
       return `- id=${f.id} ${f.icon} ${f.label}: ${f.description}［${state}］`;
     })
     .join("\n");

@@ -21,7 +21,7 @@ describe("W1 manifest", () => {
     expect(m.name).toBeTruthy();
     expect(m.short_name).toBeTruthy();
     expect((m.short_name ?? "").length).toBeLessThanOrEqual(12); // ホーム画面のアイコン名が切れない長さ
-    expect(m.start_url).toBe("/calendar");
+    expect(m.start_url).toBe("/start");
     expect(m.display).toBe("standalone");
     expect(m.lang).toBe("ja");
     expect(m.theme_color).toMatch(/^#[0-9a-f]{6}$/i);

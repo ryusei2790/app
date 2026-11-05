@@ -121,7 +121,7 @@ export function ReceiptCapture({ usage, onParsed }: Props) {
       {exhausted ? (
         <div className="rounded-xl bg-gray-100 p-4 text-sm text-gray-700">
           いまはレシート読み取りを使えません（上限に達しました）。
-          <Link href="/calendar" className="ml-1 text-blue-600 underline">手入力する</Link>
+          <Link href="/entry" className="ml-1 text-blue-600 underline">手入力する</Link>
         </div>
       ) : busy ? (
         <div className="rounded-xl border border-blue-200 bg-blue-50 p-6 text-center space-y-3" role="status">
@@ -149,7 +149,7 @@ export function ReceiptCapture({ usage, onParsed }: Props) {
       {error && (
         <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">
           {error}
-          <Link href="/calendar" className="ml-1 underline">手入力する</Link>
+          <Link href="/entry" className="ml-1 underline">手入力する</Link>
         </div>
       )}
     </div>

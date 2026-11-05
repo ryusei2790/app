@@ -44,6 +44,6 @@ describe("S6 社長アカウントの判定", () => {
     };
     expect(hrefs(false)).not.toContain("/budget");
     expect(hrefs(true)).toContain("/budget");
-    expect(hrefs(false)).toContain("/calendar");
+    expect(hrefs(false)).toContain("/entry");
   });
 });

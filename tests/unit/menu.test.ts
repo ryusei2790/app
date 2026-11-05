@@ -10,7 +10,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import type Anthropic from "@anthropic-ai/sdk";
-import { CATALOG, FIXED_FEATURES } from "@/lib/menu/catalog";
+import { CATALOG, FIXED_FEATURES, STANDARD_FEATURES } from "@/lib/menu/catalog";
 import { applyTool, buildMenu, visibleLayout, describeCatalog, validateLayout, type LayoutItem } from "@/lib/menu/layout";
 import { cleanHistory, runChat, type CreateMessage } from "@/lib/menu/chat";
 
@@ -31,11 +31,17 @@ describe("M1 機能カタログ", () => {
   it("どの機能もリンク先の画面が実在する", () => {
     for (const f of CATALOG) expect(pageExists(f.href), f.href).toBe(true);
   });
-  it("固定はホーム・レシート・収支一覧・チャット・設定の5つ（Q1 A）", () => {
-    expect(FIXED_FEATURES.map((f) => f.id)).toEqual(["home", "receipt", "transactions", "chat", "settings"]);
+  it("標準は手入力・レシート・決算の3つ、常設はチャット・設定（mywork#1150 Q1 A）", () => {
+    expect(STANDARD_FEATURES.map((f) => f.id)).toEqual(["manual", "receipt", "closing"]);
+    expect(FIXED_FEATURES.map((f) => f.id)).toEqual(["manual", "receipt", "closing", "chat", "settings"]);
+  });
+  it("カレンダー・収支一覧は拡張機能になり、追加できる", () => {
+    const r = applyTool([], "add_feature", { id: "home" }, user);
+    expect(r.ok).toBe(true);
+    expect(applyTool([], "add_feature", { id: "manual" }, user).ok).toBe(false);
   });
   it("メニューは固定5つ＋マイメニュー。カタログに無い id は出さない", () => {
-    const m = buildMenu([item("dashboard"), item("nope"), item("home")], user);
+    const m = buildMenu([item("dashboard"), item("nope"), item("settings")], user);
     expect(m.fixed).toHaveLength(5);
     expect(m.mine.map((i) => i.id)).toEqual(["dashboard"]);
   });
@@ -87,7 +93,7 @@ describe("M2 マイメニューの tool", () => {
   it("元に戻す用の配列の検査", () => {
     expect(validateLayout([item("review")], user)).toEqual([item("review")]);
     expect(validateLayout([item("review"), item("review")], user)).toBeNull();
-    expect(validateLayout([item("home")], user)).toBeNull();
+    expect(validateLayout([item("manual")], user)).toBeNull();
     expect(validateLayout("x", user)).toBeNull();
   });
 });

@@ -16,7 +16,7 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: "家計簿",
     description: "レシートを撮るだけ・定期支出は自動。カレンダーで見る家計簿",
     lang: "ja",
-    start_url: "/calendar",
+    start_url: "/start",
     scope: "/",
     display: "standalone",
     orientation: "portrait",
