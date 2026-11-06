@@ -9,13 +9,25 @@ import { redirect } from "next/navigation";
 import { getAuthUser } from "@/lib/api-helpers";
 import { STANDARD_FEATURES } from "@/lib/menu/catalog";
 import { menuForUser } from "@/lib/menu/menu-for-user";
+import { todayJst } from "@/lib/date/jst";
+import { loadRoundStatus } from "@/lib/survey/store";
 
 export default async function StartPage() {
   const user = await getAuthUser();
   if (!user) redirect("/login");
   const { mine } = await menuForUser(user);
+  // 月初のお知らせ（mywork#1150 第3弾）: 今月の回をまだ開いていない・途中のときだけ出す。スキップ・回答済みは出さない。
+  // 読めなくてもホームは出す（アンケートの不調でホームを止めない）
+  const today = todayJst();
+  const surveyStatus = await loadRoundStatus(user.id, today.slice(0, 7)).catch(() => "done" as const);
+  const showSurvey = Number(today.slice(8, 10)) <= 7 && (surveyStatus === null || surveyStatus === "open");
   return (
     <div className="mx-auto max-w-xl space-y-6 p-4 sm:p-6">
+      {showSurvey && (
+        <Link href="/survey" data-testid="survey-notice" className="block rounded-xl bg-blue-50 p-3 text-sm text-blue-800 hover:bg-blue-100">
+          🎙 今月のアンケート（5問・約3分）に答えてください。声でも文字でも答えられます →
+        </Link>
+      )}
       <div className="grid grid-cols-2 gap-3" data-testid="standard-features">
         {STANDARD_FEATURES.map((f, i) => (
           <Link

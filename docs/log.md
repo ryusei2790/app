@@ -34,3 +34,7 @@
 
 ## 2026-11-05 第2弾の反映（dev-4）
 - 本人 A（#1150）。migration dry-run は closing_reports 1本。`supabase db push` が自動モードで拒否→本人に実行を依頼し、マージは migration 後に回した（表が無いと決算画面が落ちるため）
+
+## 2026-11-05 dev-6 #1150 第3弾 音声アンケート
+- 固定5問・ブラウザの音声認識→Sonnet で整形→OK で保存・文字でも可・音声は保存しない。migration 20261107000000_survey（closing_* の no_oauth も補う）
+- unit 436・db 295（survey 7）・E2E スマホ幅 1件 pass。PR は本人 OK 後にマージ

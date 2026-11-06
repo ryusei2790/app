@@ -182,6 +182,14 @@ export function ClosingView() {
         </div>
       )}
 
+      <Link
+        href="/survey"
+        data-testid="closing-survey-link"
+        className="block rounded-xl border border-blue-200 bg-blue-50 p-3 text-center text-sm font-bold text-blue-700 hover:bg-blue-100"
+      >
+        🎙 今月のアンケート（5問・約3分）
+      </Link>
+
       <Link href="/start" className="block text-center text-sm text-blue-600 hover:underline">
         ホームへ戻る
       </Link>

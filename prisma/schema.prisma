@@ -42,6 +42,9 @@ model Profile {
   mcpCalls         McpCall[]
   closingSetting   ClosingSetting?
   closingReports   ClosingReport[]
+  surveyRounds     SurveyRound[]
+  surveyQuestions  SurveyQuestion[]
+  surveyAnswers    SurveyAnswer[]
 
   @@map("profiles")
 }
@@ -397,4 +400,65 @@ model ClosingReport {
 
   @@unique([userId, month])
   @@map("closing_reports")
+}
+
+// -----------------------------------------------------------------------------
+// survey_rounds / survey_questions / survey_answers — 月1回の音声アンケート（mywork#1150 第3弾）
+// 音声は保存しない。文字起こし（raw_text）と本人が OK した整形後（text）だけ
+// -----------------------------------------------------------------------------
+model SurveyRound {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  month      String
+  /// open / done / skipped
+  status     String    @default("open")
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  finishedAt DateTime? @map("finished_at") @db.Timestamptz
+
+  profile   Profile          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  questions SurveyQuestion[]
+
+  @@unique([userId, month])
+  @@map("survey_rounds")
+}
+
+model SurveyQuestion {
+  id        String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  roundId   String  @map("round_id") @db.Uuid
+  userId    String  @map("user_id") @db.Uuid
+  position  Int     @db.SmallInt
+  text      String
+  /// satisfaction / fixed / followup
+  kind      String
+  source    String?
+  tidyCount Int     @default(0) @map("tidy_count") @db.SmallInt
+
+  round   SurveyRound   @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  profile Profile       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  answer  SurveyAnswer?
+
+  @@unique([roundId, position])
+  @@map("survey_questions")
+}
+
+model SurveyAnswer {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  questionId   String   @unique @map("question_id") @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  rawText      String   @map("raw_text")
+  text         String
+  score        Int?     @db.SmallInt
+  /// voice / text
+  input        String
+  model        String?
+  inputTokens  Int?     @map("input_tokens")
+  outputTokens Int?     @map("output_tokens")
+  costUsd      Decimal? @map("cost_usd") @db.Decimal(10, 6)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime @default(now()) @map("updated_at") @db.Timestamptz
+
+  question SurveyQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  profile  Profile        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("survey_answers")
 }
