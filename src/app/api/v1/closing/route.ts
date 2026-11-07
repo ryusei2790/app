@@ -6,7 +6,9 @@
  *   PUT  /api/v1/closing  body: { closing_day: 1..28 | null }  — 決算日を変える（null＝月末）
  *
  * 作り直しは1か月あたり CLOSING_QUOTA_USER_MONTH 回まで（既定3）。社長は上限なし。
- * 作れる月は今月と先月だけ（古い月を何度も作らせない・費用を読みやすくする）。
+ * 作れる月は今月から12か月前まで（mywork#1238。以前は今月と先月だけ。加入したばかりの人が先月以前を後から決算できるように）。
+ * GET はあわせて、月の選択肢（記録の有無・提案の有無）・その月の支出と目標・次の月の目標と候補を返す。
+ * 目標の保存は PUT /api/v1/closing/goal。
  */
 
 import { error, ok, readJsonBody, requireAuth } from "@/lib/api-helpers";
@@ -15,20 +17,23 @@ import { isOwner } from "@/lib/features";
 import { todayJst } from "@/lib/date/jst";
 import { loadMonthlySummary } from "@/lib/aggregate/load";
 import { getCreateMessage } from "@/lib/menu/chat";
-import { buildFacts, closingDateOf, isAfterClosing, isClosingDay, prevMonth, runClosingBot } from "@/lib/closing/bot";
-import { listClosingMonths, loadClosingDay, loadClosingReport, saveClosingDay, saveClosingReport } from "@/lib/closing/store";
+import { buildFacts, closingDateOf, isAfterClosing, isClosingDay, nextMonth, prevMonth, runClosingBot } from "@/lib/closing/bot";
+import { goalProgress, goalSuggestions, isClosableMonth, isGoalMonth, monthRelLabel, selectableMonths } from "@/lib/closing/goals";
+import {
+  listClosingMonths,
+  loadClosingDay,
+  loadClosingReport,
+  loadGoal,
+  monthsWithRecords,
+  saveClosingDay,
+  saveClosingReport,
+} from "@/lib/closing/store";
 
 const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
 
 function monthlyLimit(): number {
   const v = Number(process.env.CLOSING_QUOTA_USER_MONTH);
   return Number.isInteger(v) && v > 0 ? v : 3;
-}
-
-/** 今月か先月なら true */
-function isAllowedMonth(month: string, today: string): boolean {
-  const cur = today.slice(0, 7);
-  return month === cur || month === prevMonth(cur);
 }
 
 export async function GET(request: Request) {
@@ -38,18 +43,45 @@ export async function GET(request: Request) {
   const month = new URL(request.url).searchParams.get("month") ?? today.slice(0, 7);
   if (!MONTH_RE.test(month)) return error("VALIDATION_ERROR", "month は YYYY-MM で指定してください", 422);
 
-  const [day, report, months] = await Promise.all([loadClosingDay(user.id), loadClosingReport(user.id, month), listClosingMonths(user.id)]);
   const owner = isOwner(user);
+  const choices = selectableMonths(today);
+  const next = nextMonth(month);
+  const [day, report, months, withRecords, goal, nextGoal] = await Promise.all([
+    loadClosingDay(user.id),
+    loadClosingReport(user.id, month),
+    listClosingMonths(user.id),
+    monthsWithRecords(user.id, choices[choices.length - 1], choices[0]),
+    loadGoal(user.id, month),
+    loadGoal(user.id, next),
+  ]);
+  const hasRecords = withRecords.has(month);
+
+  // その月の支出（目標との比べと、次の月の目標の候補に使う）。記録が無い月は読まない
+  const expense = hasRecords
+    ? await withUserDb(user.id, async (db) => (await loadMonthlySummary(db, user.id, month, { today, owner })).summary.expense.total)
+    : 0;
+
+  const reported = new Set(months);
   return ok({
     month,
     today,
+    month_label: monthRelLabel(month, today),
     closing_day: day,
     closing_date: closingDateOf(month, day),
     after_closing: isAfterClosing(today, month, day),
-    can_generate: isAllowedMonth(month, today),
+    can_generate: isClosableMonth(month, today),
     generations_left: owner ? null : Math.max(0, monthlyLimit() - (report?.generations ?? 0)),
     report,
     months,
+    choices: choices.map((m) => ({ month: m, label: monthRelLabel(m, today), has_records: withRecords.has(m), has_report: reported.has(m) })),
+    has_records: hasRecords,
+    expense,
+    goal: goalProgress(goal?.expenseGoal ?? null, expense),
+    next_month: next,
+    next_label: monthRelLabel(next, today),
+    next_goal: nextGoal,
+    can_set_next_goal: hasRecords && isGoalMonth(next, today),
+    goal_suggestions: goalSuggestions(expense),
   });
 }
 
@@ -60,15 +92,15 @@ export async function POST(request: Request) {
   if (bad) return bad;
   const today = todayJst();
   const month = typeof body.month === "string" ? body.month : today.slice(0, 7);
-  if (!MONTH_RE.test(month) || !isAllowedMonth(month, today)) {
-    return error("VALIDATION_ERROR", "提案を作れるのは今月と先月だけです", 422);
+  if (!MONTH_RE.test(month) || !isClosableMonth(month, today)) {
+    return error("VALIDATION_ERROR", "提案を作れるのは今月から12か月前までです", 422);
   }
 
   const create = getCreateMessage();
   if (!create) return error("AI_UNAVAILABLE", "いま提案は作れません（AI の設定がありません）", 503);
 
   const owner = isOwner(user);
-  const [existing, day] = await Promise.all([loadClosingReport(user.id, month), loadClosingDay(user.id)]);
+  const [existing, day, goal] = await Promise.all([loadClosingReport(user.id, month), loadClosingDay(user.id), loadGoal(user.id, month)]);
   if (!owner && (existing?.generations ?? 0) >= monthlyLimit()) {
     return error("RATE_LIMITED", `この月の提案は${monthlyLimit()}回まで作れます。保存した提案はこのまま読めます。`, 429);
   }
@@ -88,7 +120,11 @@ export async function POST(request: Request) {
   // 2) AI が文章にする（数字は facts の中だけ）
   let result;
   try {
-    result = await runClosingBot({ facts: buildFacts(cur, prev, !isAfterClosing(today, month, day)), create, model: process.env.CLOSING_MODEL });
+    const facts = buildFacts(cur, prev, !isAfterClosing(today, month, day), {
+      goal: goal?.expenseGoal ?? null,
+      nextLabel: monthRelLabel(nextMonth(month), today),
+    });
+    result = await runClosingBot({ facts, create, model: process.env.CLOSING_MODEL });
   } catch (e) {
     console.error("[closing] AI の呼び出しに失敗", e instanceof Error ? e.message : e);
     return error("AI_UNAVAILABLE", "AI が応答しませんでした。少し待ってからもう一度押してください。", 503);
