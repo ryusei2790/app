@@ -245,7 +245,7 @@ export function ClosingView() {
         </div>
       )}
 
-      {data.can_set_next_goal && <GoalPanel key={`${data.month}:${data.next_goal?.expenseGoal ?? ""}`} data={data} onSaved={() => load(data.month)} />}
+      {data.can_set_next_goal && <GoalPanel key={data.month} data={data} onSaved={() => load(data.month)} />}
 
       <Link href="/start" className="block text-center text-sm text-blue-600 hover:underline">
         ホームへ戻る
@@ -257,7 +257,7 @@ export function ClosingView() {
 /**
  * 決算の結果から次の月の目標（支出）を決める（mywork#1238）。
  * 候補ボタン（同じくらい・5%減・10%減）か手で金額を入れて保存する。決め直すと上書き、「目標を消す」で消せる。
- * key に月と保存済みの額を入れて、月を切り替えたら入力欄を初期化する（effect で setState しないため）。
+ * key に月を入れて、月を切り替えたら入力欄を初期化する（effect で setState しないため）。保存後は読み直した値を表示し、入力欄も保存した額にそろえる。
  */
 function GoalPanel({ data, onSaved }: { data: ClosingData; onSaved: () => Promise<void> }) {
   const current = data.next_goal?.expenseGoal ?? null;
@@ -276,6 +276,7 @@ function GoalPanel({ data, onSaved }: { data: ClosingData; onSaved: () => Promis
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error?.message ?? "保存できませんでした");
+      setValue(amount === null ? "" : String(amount));
       setMsg({ ok: true, text: amount === null ? "目標を消しました" : `${monthLabel(data.next_month)}の目標を ${yen(amount)} にしました` });
       await onSaved();
     } catch (e) {
