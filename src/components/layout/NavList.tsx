@@ -2,13 +2,14 @@
  * @file components/layout/NavList.tsx
  * @description メニューの中身（標準3つ＋常設＋拡張機能（mywork#1150））。Sidebar と MobileNav で同じものを出す（mywork#573）。
  * 固定の5つは全員同じ並びで、マイメニューは本人がチャットで選んだ機能だけ。空ならチャットへの案内を出す。
+ * 先頭には必ず「ホーム」を出す（mywork#1238。メニューを開けば、どの画面からも1回でホームに戻れる）。
  */
 
 "use client";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { isActivePath, type NavItem, type NavMenu } from "@/lib/nav";
+import { HOME_ITEM, isActivePath, type NavItem, type NavMenu } from "@/lib/nav";
 
 function Item({ item, onNavigate }: { item: NavItem; onNavigate?: () => void }) {
   const pathname = usePathname();
@@ -33,6 +34,7 @@ export function NavList({ menu, onNavigate }: { menu: NavMenu; onNavigate?: () =
   return (
     <>
       <ul className="space-y-0.5">
+        <Item item={HOME_ITEM} onNavigate={onNavigate} />
         {menu.fixed.map((item) => (
           <Item key={item.id} item={item} onNavigate={onNavigate} />
         ))}

@@ -3,12 +3,14 @@
  * @description 認証必須ページ群の共通レイアウト。
  * サーバーサイドで認証チェックを行い、未認証なら /login にリダイレクト。
  * サイドバーはアクティブリンクをハイライト表示する。
+ * スマホ幅は 上のバー（アプリ名＝ホームへ・メニュー）＋本文＋下のタブ（ホーム・標準3つ・チャット）の縦3段（mywork#1238）。
  */
 
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { MobileNav } from "@/components/layout/MobileNav";
+import { MobileTabBar } from "@/components/layout/MobileTabBar";
 import { OfflineNotice } from "@/components/pwa/OfflineNotice";
 import { FixedCostGenerateTrigger } from "@/components/layout/FixedCostGenerateTrigger";
 import { menuForUser } from "@/lib/menu/menu-for-user";
@@ -31,8 +33,9 @@ export default async function DashboardLayout({
   // メニューは固定の5つ＋本人のマイメニュー（mywork#573）。社長専用の機能は社長にだけ入る
   const menu = await menuForUser(user);
 
+  // h-dvh: iPhone の Safari で下のタブがツールバーの裏に隠れないよう、見えている高さに合わせる（100vh だと隠れる）
   return (
-    <div className="flex h-screen flex-col bg-gray-50 md:flex-row">
+    <div className="flex h-dvh flex-col bg-gray-50 md:flex-row">
       {/* 広い画面はサイドバー、スマホ幅は上部バー＋メニュー */}
       <Sidebar userEmail={user.email ?? ""} menu={menu} />
       <MobileNav userEmail={user.email ?? ""} menu={menu} />
@@ -40,6 +43,7 @@ export default async function DashboardLayout({
         <OfflineNotice />
         {children}
       </main>
+      <MobileTabBar menu={menu} />
       {/* 定期支出の展開：画面を開いたとき今日までの分を作る（本命は毎日の定期実行） */}
       <FixedCostGenerateTrigger />
     </div>
