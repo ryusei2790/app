@@ -80,7 +80,8 @@ export async function GET(request: Request) {
     next_month: next,
     next_label: monthRelLabel(next, today),
     next_goal: nextGoal,
-    can_set_next_goal: hasRecords && isGoalMonth(next, today),
+    // 月の途中（決算日の前）の今月は、途中の少ない支出から来月の目標の候補が出てしまうので、決算日を過ぎてから出す
+    can_set_next_goal: hasRecords && isGoalMonth(next, today) && (month !== today.slice(0, 7) || isAfterClosing(today, month, day)),
     goal_suggestions: goalSuggestions(expense),
   });
 }

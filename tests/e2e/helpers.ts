@@ -2,7 +2,7 @@
  * @file tests/e2e/helpers.ts
  * @description E2E（Playwright）の道具。ローカルの Supabase だけを相手にする。
  * - createUser: Auth の管理 API でメール確認済みのユーザーを作る（画面の新規登録は W6 で別に試す）
- * - login: 画面からログインしてカレンダーまで進む
+ * - login: 画面からログインしてホーム（/start）まで進む
  * - api: ログイン中のブラウザの Cookie で API を呼ぶ（前提データ＝口座の用意など）
  */
 
@@ -51,7 +51,8 @@ export async function login(page: Page, u: { email: string; password: string }) 
   await page.getByLabel("メールアドレス").fill(u.email);
   await page.getByLabel("パスワード").fill(u.password);
   await page.getByRole("button", { name: "ログイン", exact: true }).click();
-  await page.waitForURL("**/calendar");
+  // ログイン後はホーム（/start、mywork#1150）。それ以前の /calendar も受ける
+  await page.waitForURL(/\/(start|calendar)$/);
 }
 
 /** ログイン中の Cookie で口座を1つ作る */
