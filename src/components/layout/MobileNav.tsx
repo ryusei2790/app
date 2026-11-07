@@ -3,14 +3,16 @@
  * @description スマホ幅（md 未満）用の上部バー＋メニュー（テスト一覧 W3・W6）。
  * 広い画面では Sidebar を出し、狭い画面ではこちらを出す（サイドバーが 375px の半分以上を取っていたため）。
  * メニューの項目は Sidebar と同じ NavList（固定の5つ＋マイメニュー。社長専用の項目は社長にだけ）。
+ * 左上のアプリ名はホーム（/start）へのリンク（mywork#1238）。下のタブ（MobileTabBar）と合わせて、どの画面からも1回で戻れる。
  */
 
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import type { NavMenu } from "@/lib/nav";
+import { HOME_PATH, type NavMenu } from "@/lib/nav";
 import { NavList } from "./NavList";
 
 export function MobileNav({ userEmail, menu }: { userEmail: string; menu: NavMenu }) {
@@ -26,7 +28,14 @@ export function MobileNav({ userEmail, menu }: { userEmail: string; menu: NavMen
   return (
     <header className="md:hidden border-b border-gray-200 bg-white">
       <div className="flex items-center justify-between px-4 py-3">
-        <span className="text-base font-bold text-gray-900">カレンダー家計簿</span>
+        <Link
+          href={HOME_PATH}
+          onClick={() => setOpen(false)}
+          aria-label="カレンダー家計簿（ホームへ）"
+          className="-mx-1 rounded px-1 text-base font-bold text-gray-900 active:bg-gray-100"
+        >
+          カレンダー家計簿
+        </Link>
         <button
           type="button"
           aria-expanded={open}

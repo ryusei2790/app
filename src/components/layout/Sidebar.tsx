@@ -3,13 +3,15 @@
  * @description サイドバーナビゲーション（Client Component）。
  * 中身は NavList（固定の5つ＋マイメニュー、mywork#573）。
  * ログアウトボタンも配置する。
+ * 左上のアプリ名はホーム（/start）へのリンク（mywork#1238。アプリでよくある「ロゴを押すとトップ」）。
  */
 
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import type { NavMenu } from "@/lib/nav";
+import { HOME_PATH, type NavMenu } from "@/lib/nav";
 import { NavList } from "./NavList";
 
 interface SidebarProps {
@@ -29,9 +31,11 @@ export function Sidebar({ userEmail, menu }: SidebarProps) {
 
   return (
     <aside className="hidden w-60 shrink-0 border-r border-gray-200 bg-white md:flex md:flex-col">
-      {/* ロゴ */}
+      {/* ロゴ（押すとホーム） */}
       <div className="px-4 py-5 border-b border-gray-100">
-        <h1 className="text-base font-bold text-gray-900">カレンダー家計簿</h1>
+        <Link href={HOME_PATH} aria-label="カレンダー家計簿（ホームへ）" className="text-base font-bold text-gray-900 hover:text-blue-700">
+          カレンダー家計簿
+        </Link>
         <p className="mt-0.5 text-xs text-gray-400 truncate">{userEmail}</p>
       </div>
 

@@ -2,16 +2,18 @@
  * @file app/about/layout.tsx
  * @description ログイン前でも読めるページ（数字の定義など）の共通の枝。
  * ダッシュボードのメニューは出さず、上に戻り先だけ置く（proxy.ts の保護対象ではない）。
+ * 戻り先はホーム（/start、mywork#1238）。未ログインならログイン画面を経てホームに着く。
  */
 
 import Link from "next/link";
+import { HOME_PATH } from "@/lib/nav";
 
 export default function AboutLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="border-b border-gray-200 bg-white">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3">
-          <Link href="/dashboard" className="text-base font-bold text-gray-900">
+          <Link href={HOME_PATH} aria-label="カレンダー家計簿（ホームへ）" className="text-base font-bold text-gray-900">
             カレンダー家計簿
           </Link>
           <div className="flex gap-4">
@@ -21,8 +23,8 @@ export default function AboutLayout({ children }: { children: React.ReactNode })
             <Link href="/about/changes" className="text-sm text-blue-600 hover:underline">
               更新履歴
             </Link>
-            <Link href="/dashboard" className="text-sm text-blue-600 hover:underline">
-              ダッシュボードへ →
+            <Link href={HOME_PATH} className="text-sm text-blue-600 hover:underline">
+              ホームへ →
             </Link>
           </div>
         </div>

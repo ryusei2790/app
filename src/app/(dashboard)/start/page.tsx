@@ -53,7 +53,8 @@ export default async function StartPage() {
       <Link
         href="/chat"
         aria-label="チャット（機能の相談・追加・要望）"
-        className="fixed bottom-5 right-5 flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-2xl text-white shadow-lg hover:bg-blue-700"
+        // スマホは下のタブにチャットがあるので出さない（タブと重なるため。mywork#1238）
+        className="fixed bottom-5 right-5 hidden h-14 w-14 md:flex items-center justify-center rounded-full bg-blue-600 text-2xl text-white shadow-lg hover:bg-blue-700"
       >
         💬
       </Link>
