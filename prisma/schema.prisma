@@ -42,6 +42,7 @@ model Profile {
   mcpCalls         McpCall[]
   closingSetting   ClosingSetting?
   closingReports   ClosingReport[]
+  monthlyGoals     MonthlyGoal[]
 
   @@map("profiles")
 }
@@ -397,4 +398,20 @@ model ClosingReport {
 
   @@unique([userId, month])
   @@map("closing_reports")
+}
+
+/// 月の支出の目標（mywork#1238 第2弾）。決算した月の次の月に付ける。1か月1行
+model MonthlyGoal {
+  userId      String   @map("user_id") @db.Uuid
+  month       String
+  expenseGoal Int      @map("expense_goal")
+  /// どの月の決算を見て決めたか（手で入れたなら null）
+  fromMonth   String?  @map("from_month")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @default(now()) @map("updated_at") @db.Timestamptz
+
+  profile Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, month])
+  @@map("monthly_goals")
 }
