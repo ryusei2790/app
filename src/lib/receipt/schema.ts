@@ -9,6 +9,9 @@
  *   ok           … そのまま保存してよさそう（それでも保存は利用者が押したときだけ: P8）
  *   needs_review … 読めない・欠けている・合計が合わない等。印の付いた所を直してもらう（P2・P3）
  *   unsupported  … 外貨・日本語以外・レシートでない（Phase 1 の対象外: P7）
+ *
+ * 消費税の方式（内税／外税）は、AI の判断（tax_mode）より「小計・消費税・合計の金額が合うか」を優先して決める
+ * （app#42。店ごとに方式を定義しない）。判定は judgeTax。
  */
 
 import { z } from "zod";
@@ -23,6 +26,7 @@ export const ReceiptAiResultSchema = z.object({
   language: z.string(),
   merchant: z.string().nullable(),
   purchased_at: z.string().nullable(),
+  subtotal: z.number().nullable(),
   total: z.number().nullable(),
   tax_mode: z.enum(["inclusive", "exclusive", "unknown"]),
   tax_lines: z.array(z.object({ rate: z.number(), amount: z.number() })),
@@ -45,6 +49,7 @@ export type ReceiptAiResult = z.infer<typeof ReceiptAiResultSchema>;
  * 税・単価・カテゴリの欄は無くても読む（欠けたら「内税扱い」「未分類」）。
  */
 const ReceiptAiInputSchema = ReceiptAiResultSchema.extend({
+  subtotal: ReceiptAiResultSchema.shape.subtotal.catch(null),
   tax_mode: ReceiptAiResultSchema.shape.tax_mode.catch("unknown"),
   tax_lines: ReceiptAiResultSchema.shape.tax_lines.catch([]),
   items: z.array(
@@ -67,6 +72,8 @@ export type WarningCode =
   | "total_not_positive"
   | "date_out_of_range"
   | "items_total_mismatch"
+  | "subtotal_total_mismatch"
+  | "total_looks_like_subtotal"
   | "item_unit_mismatch"
   | "not_receipt"
   | "foreign_currency"
@@ -91,11 +98,25 @@ export interface DraftItem {
   unitMismatch: boolean;
 }
 
+/**
+ * 小計・消費税・合計の照合の結果（app#42）
+ *   inclusive … 小計 = 合計（明細に税が入っている。合計をそのまま登録）
+ *   exclusive … 小計 ＋ 消費税 = 合計（小計のあとに税を足す方式。税込の合計を登録し、税を明細に按分）
+ *   mismatch  … どちらでも合わない（従来の不整合の扱い: 警告を出して確認へ）
+ *   unchecked … 合計か小計（明細）が無く、照合できない
+ */
+export type TaxCheck = "inclusive" | "exclusive" | "mismatch" | "unchecked";
+
 export interface ReceiptDraft {
   status: "ok" | "needs_review" | "unsupported";
   merchant: string | null;
   date: string | null;
   total: number | null;
+  /** 照合に使った小計（印字の小計。無ければ印字された明細の和）。明細も小計も無ければ null */
+  subtotal: number | null;
+  /** 読み取れた消費税額の和（内税・外税とも。税率ごとの行の和） */
+  taxTotal: number;
+  taxCheck: TaxCheck;
   /** 外税のレシートで、明細に税を按分したか */
   taxAllocated: boolean;
   items: DraftItem[];
@@ -119,6 +140,9 @@ const empty = (warnings: DraftWarning[], status: ReceiptDraft["status"]): Receip
   merchant: null,
   date: null,
   total: null,
+  subtotal: null,
+  taxTotal: 0,
+  taxCheck: "unchecked",
   taxAllocated: false,
   items: [],
   warnings,
@@ -148,6 +172,24 @@ export function allocateTax(
   }
   return out;
 }
+
+/**
+ * 小計・消費税・合計の金額同士が合うかで、内税／外税を決める（app#42）。
+ * 1. 小計 = 合計 → inclusive（従来どおり合計を登録）
+ * 2. 小計 ＋ 消費税 = 合計 → exclusive（税込の合計を登録）
+ * 3. どちらでも合わない → mismatch（既存の不整合の扱いへ）
+ * 1円のずれも許さない（完全一致だけ）。税額はレシートに印字された丸め済みの値を読むので、
+ * 正しく読めていれば必ずぴったり合う。1円でも違えば、どこかの読み違いとして利用者に確かめてもらう。
+ * 店ごとの方式は持たない。AI の tax_mode は使わず、金額だけで決める（AI が内税・外税を取り違えても直る）。
+ */
+export function judgeTax(subtotal: number | null, taxTotal: number, total: number | null): TaxCheck {
+  if (subtotal === null || total === null) return "unchecked";
+  if (subtotal === total) return "inclusive";
+  if (taxTotal > 0 && subtotal + taxTotal === total) return "exclusive";
+  return "mismatch";
+}
+
+const yen = (n: number) => `${n.toLocaleString("ja-JP")}円`;
 
 /**
  * AI の応答（文字列）→ 下書き。
@@ -201,9 +243,40 @@ export function toDraft(raw: string, today: string): ReceiptDraft {
     total = parsed.total;
   }
 
-  // 外税なら、税の行を明細に按分して税込にする（明細の和＋税額 = 合計 で照合できるように）
+  // 小計・消費税・合計の照合で内税／外税を決める（app#42）。
+  // 小計は「印字の小計」→「印字された明細の和」の順に試す。小計のあとに値引きの行があるレシートでは
+  // 印字の小計では合わず、値引き後の明細の和で合うため（明細も小計も無ければ照合しない）
   const taxLines = parsed.tax_lines.filter((t) => Number.isInteger(t.amount) && t.amount > 0);
-  const taxAllocated = parsed.tax_mode === "exclusive" && taxLines.length > 0;
+  const taxTotal = taxLines.reduce((s, t) => s + t.amount, 0);
+  const printedSubtotal =
+    parsed.subtotal !== null && Number.isInteger(parsed.subtotal) && parsed.subtotal > 0 ? parsed.subtotal : null;
+  const itemsSubtotal = parsed.items.length > 0 ? parsed.items.reduce((s, i) => s + i.amount, 0) : null;
+  const candidates = [printedSubtotal, itemsSubtotal].filter((v): v is number => v !== null);
+  const matched = candidates.find((c) => {
+    const r = judgeTax(c, taxTotal, total);
+    return r === "inclusive" || r === "exclusive";
+  });
+  const subtotal = matched ?? candidates[0] ?? null;
+  const taxCheck = judgeTax(subtotal, taxTotal, total);
+
+  if (taxCheck === "inclusive" && parsed.tax_mode === "exclusive" && taxTotal > 0 && total !== null) {
+    // 外税の税の行があるのに 合計 = 小計。合計の欄に小計を読んだ（税を足す前の額を登録しかけている）おそれ
+    warnings.push({
+      code: "total_looks_like_subtotal",
+      message: `合計が小計と同じ（${yen(total)}）ですが、外税の消費税（${yen(taxTotal)}）の行があります。お支払い合計が ${yen(total + taxTotal)} でないか確認してください。`,
+    });
+  } else if (taxCheck === "mismatch" && printedSubtotal !== null && total !== null) {
+    warnings.push({
+      code: "subtotal_total_mismatch",
+      message: `小計（${yen(printedSubtotal)}）${taxTotal > 0 ? `＋消費税（${yen(taxTotal)}）` : ""}と合計（${yen(total)}）が合いません。金額を確認してください。`,
+    });
+  }
+
+  // 外税と判定できたら、税の行を明細に按分して税込にする（明細の和 = 合計 で照合できるように）。
+  // 金額で判定できないとき（mismatch・unchecked）は従来どおり AI の tax_mode に従う
+  const taxAllocated =
+    taxLines.length > 0 &&
+    (taxCheck === "exclusive" || ((taxCheck === "mismatch" || taxCheck === "unchecked") && parsed.tax_mode === "exclusive"));
   const withTax = taxAllocated
     ? allocateTax(parsed.items.map((i) => ({ amount: i.amount, taxRate: i.tax_rate })), taxLines)
     : parsed.items.map((i) => i.amount);
@@ -233,10 +306,21 @@ export function toDraft(raw: string, today: string): ReceiptDraft {
     if (sum !== total) {
       warnings.push({
         code: "items_total_mismatch",
-        message: `明細の合計（${sum.toLocaleString("ja-JP")}円）と合計金額（${total.toLocaleString("ja-JP")}円）が合いません。値引き・税の行を確認してください。`,
+        message: `明細の合計（${yen(sum)}）と合計金額（${yen(total)}）が合いません。値引き・税の行を確認してください。`,
       });
     }
   }
 
-  return { status: warnings.length > 0 ? "needs_review" : "ok", merchant, date, total, taxAllocated, items, warnings };
+  return {
+    status: warnings.length > 0 ? "needs_review" : "ok",
+    merchant,
+    date,
+    total,
+    subtotal,
+    taxTotal,
+    taxCheck,
+    taxAllocated,
+    items,
+    warnings,
+  };
 }

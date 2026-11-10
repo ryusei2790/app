@@ -4,6 +4,7 @@
  * AI の結果は自動では保存しない。利用者が「保存」を押したときに、画面の値だけを POST /api/v1/receipts に送る。
  * 警告（読めない・合計が合わない等）は該当の欄の上にまとめて出す。対象外（外貨など）は保存させず手入力へ。
  * 明細ごとのカテゴリは AI の案を初期値にして選び直せる。保存するとカテゴリごとに取引が分かれる（mywork#229）。
+ * 小計・消費税・合計が合ったときは、合計の欄の下にその式（内税／外税）を出す（app#42）。
  */
 
 "use client";
@@ -42,6 +43,16 @@ export function ReceiptReview({ draft, model, onSaved, onRetake }: Props) {
       ? splitByCategory(draft.items.map((it, i) => ({ amount: it.amount, categoryId: catOf(i) ?? (categoryId || null) })), Number(total))
       : [];
   const catName = (id: string | null) => categories.find((c) => c.id === id)?.name ?? "未分類";
+  // 小計・消費税・合計の照合の結果（app#42）。合わなかったときは上の警告で知らせるので、ここには出さない
+  const yen = (n: number) => `¥${n.toLocaleString("ja-JP")}`;
+  const taxNote =
+    draft.subtotal === null || draft.total === null
+      ? null
+      : draft.taxCheck === "exclusive"
+        ? `外税: 小計 ${yen(draft.subtotal)} ＋ 消費税 ${yen(draft.taxTotal)} ＝ 合計 ${yen(draft.total)}（税込の合計を登録）`
+        : draft.taxCheck === "inclusive" && !draft.warnings.some((w) => w.code === "total_looks_like_subtotal")
+          ? `内税: 小計と合計が一致（${yen(draft.total)}${draft.taxTotal > 0 ? `・うち消費税 ${yen(draft.taxTotal)}` : ""}）`
+          : null;
 
   // 口座が1つだけなら最初から選んでおく（よくある「財布」だけの人の手間を減らす）
   const account = accountId || (accounts.length === 1 ? accounts[0].id : "");
@@ -115,6 +126,7 @@ export function ReceiptReview({ draft, model, onSaved, onRetake }: Props) {
         <div>
           <label htmlFor="rc-total" className={label}>合計（円）</label>
           <input id="rc-total" type="number" inputMode="numeric" min="1" step="1" className={input} value={total} onChange={(e) => setTotal(e.target.value)} />
+          {taxNote && <p className="mt-1 text-xs text-gray-600" aria-label="消費税の確認">{taxNote}</p>}
         </div>
         <div>
           <label htmlFor="rc-account" className={label}>口座</label>
