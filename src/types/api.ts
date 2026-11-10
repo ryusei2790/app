@@ -149,9 +149,26 @@ export interface SummaryResponse {
   frames: BudgetMonthSummary | null;
   review: { refund_candidates: number; unassigned: number; scheduled: number; duplicates: number };
   upcoming: UpcomingItem[];
+  /**
+   * 今月の見込み込みの数字（実績＋定期のまだ来ていない回。app#43）。
+   * applies=false（今月以外・定期の回が無い）なら income・expense・balance は実績と同じ
+   */
+  forecast: SummaryForecast;
   /** 互換（同じ数字） */
   total_income: number;
   total_expense: number;
+}
+
+export interface SummaryForecast {
+  applies: boolean;
+  income: number;
+  expense: number;
+  balance: number;
+  /** そのうち定期の見込みの分 */
+  forecast_income: number;
+  forecast_expense: number;
+  /** 見込みに入れた定期の回の数 */
+  count: number;
 }
 
 export interface ScheduledItem {

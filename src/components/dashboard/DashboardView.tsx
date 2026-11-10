@@ -9,7 +9,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { MonthSummary } from "./MonthSummary";
+import { MonthSummary, showsForecast, type SummaryView } from "./MonthSummary";
 import { CategoryPieChart } from "./CategoryPieChart";
 import { FixedBreakdown } from "./FixedBreakdown";
 import { UpcomingList } from "./UpcomingList";
@@ -19,6 +19,9 @@ import { ErrorNotice } from "@/components/ui/error-notice";
 
 export function DashboardView() {
   const [month, setMonth] = useState(currentMonthKey());
+  // 既定は見込み込み（app#43）。開くたびに見込み込みから（覚えておくほどの設定ではないので保存しない）
+  const [view, setView] = useState<SummaryView>("forecast");
+
   const { summary, loading, error, refetch } = useMonthlySummary(month);
   const [y, m] = month.split("-").map(Number);
   const reviewCount = summary ? summary.review.refund_candidates + summary.review.unassigned + summary.review.duplicates : 0;
@@ -64,7 +67,7 @@ export function DashboardView() {
       ) : summary ? (
         <div className="space-y-6">
           {/* 支出（今日まで）・収入・残り・予定 */}
-          <MonthSummary summary={summary} />
+          <MonthSummary summary={summary} view={view} onViewChange={setView} />
 
           {/* 要確認（返金候補・未割り当て・重複候補）。予定は上のカードに出ている */}
           <Link
@@ -87,7 +90,12 @@ export function DashboardView() {
           </section>
 
           {/* 予定（定期の未展開の回＋今日より後の取引）。合計には入れず別枠で見せる */}
-          <UpcomingList items={summary.upcoming} scheduled={summary.scheduled.items} balance={summary.balance} />
+          <UpcomingList
+            items={summary.upcoming}
+            scheduled={summary.scheduled.items}
+            balance={summary.balance}
+            forecastIncluded={showsForecast(summary, view)}
+          />
 
           {/* カテゴリ別支出（購入 − 返金） */}
           <div className="rounded-xl border border-gray-200 bg-white p-6">

@@ -1,4 +1,5 @@
 // kakebo ウィジェット（Scriptable 用）— 今月の収入・支出・合計を iPhone のホームに出す（mywork#967）
+// 数字は定期（給料・家賃など）のまだ来ていない今月の回を含めた「見込み込み」（app#43）。含めたときは「見込み込み」と出す
 // 貼り付け手順: docs/2026-10-30_iPhoneウィジェット_貼り付け手順.md
 // トークンはこのファイルに書かない。Mac が iCloud の Scriptable フォルダに置いた kakebo-widget.json（{"token": "..."}）があれば
 // 初回実行時に Keychain へ移してファイルを消す。無ければ Scriptable アプリで実行したとき入力欄が出て Keychain に保存する。
@@ -52,6 +53,8 @@ async function getToken() {
 }
 
 const yen = (n) => (n < 0 ? "-¥" : "¥") + Math.abs(n).toLocaleString("ja-JP");
+// 定期の見込みを含めているか（古い API は forecast を返さないので、無ければ含めていない扱い）
+const hasForecast = (data) => Boolean(data && data.forecast && data.forecast.count > 0);
 
 async function fetchSummary(token) {
   const req = new Request(API_URL);
@@ -111,6 +114,11 @@ function build(data, errorMessage) {
     b.textColor = data.balance < 0 ? COLORS.expense : COLORS.text;
     b.minimumScaleFactor = 0.5;
     b.lineLimit = 1;
+    if (hasForecast(data)) {
+      const f = w.addText("定期の見込み込み");
+      f.font = Font.systemFont(10);
+      f.textColor = COLORS.sub;
+    }
     w.addSpacer(6);
     row(w, "収入", data.income, COLORS.income, 13);
     w.addSpacer(2);
@@ -119,7 +127,7 @@ function build(data, errorMessage) {
     const body = w.addStack();
     const left = body.addStack();
     left.layoutVertically();
-    const cap = left.addText("合計");
+    const cap = left.addText(hasForecast(data) ? "合計（見込み込み）" : "合計");
     cap.font = Font.mediumSystemFont(12);
     cap.textColor = COLORS.sub;
     const b = left.addText(yen(data.balance));

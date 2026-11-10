@@ -7,6 +7,7 @@
  * - 数字はすべて lib/aggregate の summarize（定義 4-1）。ここでは snake_case に写すだけ
  * - 予算の費目（frames）は社長（OWNER_USER_IDS）だけ値が入り、他は null
  * - 古い型（total_income・total_expense・balance・by_category・fixed・upcoming）も同じ数字で返す
+ * - forecast は今月の見込み込みの数字（実績＋定期のまだ来ていない回。app#43）。income・expense・balance は実績のまま
  */
 
 import type { NextRequest } from "next/server";
@@ -34,7 +35,7 @@ export function parseMonthParam(params: URLSearchParams, today: string): string 
 }
 
 /** API の返し方（snake_case）。数字は summarize のまま */
-export function serializeSummary({ summary: s, upcoming }: MonthData) {
+export function serializeSummary({ summary: s, upcoming, forecast: f }: MonthData) {
   const byCategory = s.byCategory.map((c) => ({
     category_id: c.categoryId,
     name: c.name,
@@ -80,6 +81,15 @@ export function serializeSummary({ summary: s, upcoming }: MonthData) {
       duplicates: s.review.duplicates,
     },
     upcoming: upcomingItems,
+    forecast: {
+      applies: f.applies,
+      income: f.income,
+      expense: f.expense,
+      balance: f.balance,
+      forecast_income: f.forecastIncome,
+      forecast_expense: f.forecastExpense,
+      count: f.items.length,
+    },
     // 互換（ダッシュボードの古い型）。同じ数字
     total_income: s.income.total,
     total_expense: s.expense.total,

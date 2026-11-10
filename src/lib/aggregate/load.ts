@@ -4,6 +4,7 @@
  * route（api/v1/summary・api/v1/review・api/v1/budget）から withUserDb の中で呼ぶので RLS が効く（他人の行は読めない: S14）。
  * 読むもの: その月の取引（予定の行も含めて月の全部）・自分の定期（固定の条件と「今月の予定」用）・カテゴリー（名前と色）・
  * 社長なら予算の費目と対応表。計算はここでは一切しない（summarize に寄せる: D9）。
+ * 今月の「見込み込み」の数字（実績＋定期のまだ来ていない回）も forecastMonth（lib/aggregate/forecast.ts）で添える（app#43）。
  */
 
 import type { UserDb } from "@/lib/db";
@@ -13,6 +14,8 @@ import type { Cycle } from "@/lib/fixed-costs/schedule";
 import type { FixedTx } from "@/lib/fixed/classify";
 import { upcomingInMonth, type UpcomingItem } from "@/lib/fixed/upcoming";
 import { loadFrames, loadRules } from "@/lib/budget/store";
+import { getUsdJpyRate, usdToYen, type UsdJpyRate } from "@/lib/fx/usd-jpy";
+import { forecastMonth, type MonthForecast } from "./forecast";
 import type { TransactionKind } from "./definitions";
 import { monthEnd, summarize, type AggTx, type MonthlySummary, type SummarizeInput } from "./monthly";
 
@@ -22,6 +25,8 @@ export interface MonthData {
   upcoming: UpcomingItem[];
   /** その月の取引（要確認の列挙に使う） */
   txs: AggTx[];
+  /** 今月の見込み込みの数字（実績＋定期のまだ来ていない回）。今月以外・定期の回が無ければ applies=false で実績と同じ */
+  forecast: MonthForecast;
 }
 
 const TX_SELECT = {
@@ -33,6 +38,7 @@ const TX_SELECT = {
   categoryId: true,
   note: true,
   source: true,
+  fixedCostId: true,
   category: { select: { name: true, type: true, color: true } },
 } as const;
 
@@ -46,6 +52,7 @@ export function aggTxFromRecord(t: {
   categoryId: string | null;
   note: string | null;
   source: string;
+  fixedCostId?: string | null;
   category: { name: string; type: string; color: string | null } | null;
 }): AggTx {
   return {
@@ -59,6 +66,7 @@ export function aggTxFromRecord(t: {
     categoryType: (t.category?.type as "income" | "expense" | undefined) ?? null,
     note: t.note,
     source: t.source,
+    fixedCostId: t.fixedCostId ?? null,
   };
 }
 
@@ -96,12 +104,13 @@ export async function loadBudget(db: UserDb, userId: string): Promise<SummarizeI
 /**
  * 月の集計と「今月の予定」をまとめて読む。
  * @param opts.owner 社長なら予算の費目も集計する（他の人は frames: null）
+ * @param opts.rate  ドル円の取り方（テストで差し替える）。ドル建ての定期の予定があるときだけ呼ぶ
  */
 export async function loadMonthlySummary(
   db: UserDb,
   userId: string,
   month: string,
-  opts: { today: string; owner: boolean }
+  opts: { today: string; owner: boolean; rate?: UsdJpyRate }
 ): Promise<MonthData> {
   const [txs, fixedCosts, categories] = await Promise.all([
     loadMonthTxs(db, userId, month),
@@ -121,7 +130,7 @@ export async function loadMonthlySummary(
 
   // 今月の予定（定期のまだ来ていない回）。同じ月に条件に当てはまる取引があれば二重に見込まない（F7）
   const fixedTxs: FixedTx[] = txs.map((t) => ({ date: t.date, amount: t.amount, type: t.type, categoryId: t.categoryId, note: t.note, source: t.source }));
-  const upcoming = upcomingInMonth({
+  const rawUpcoming = upcomingInMonth({
     sources: fixedCosts.map((fc) => ({
       ...conditionFromRecord(fc),
       name: fc.name,
@@ -138,5 +147,24 @@ export async function loadMonthlySummary(
     today: opts.today,
   });
 
-  return { summary, upcoming, txs };
+  // ドル建ての定期は金額がドルなので、予定・見込みに出す前に円に直す（直近のドル円。取引になるときはその日のレートで作り直る）
+  const usdIds = new Set(fixedCosts.filter((fc) => fc.currency === "USD").map((fc) => fc.id));
+  const upcoming = await upcomingInYen(rawUpcoming, usdIds, opts.rate ?? getUsdJpyRate);
+
+  const forecast = forecastMonth({ summary, upcoming, txs });
+  return { summary, upcoming, txs, forecast };
+}
+
+/**
+ * ドル建ての定期の予定を円に直す。相場が取れなければその回は出さない
+ * （ドルの数字を円として足すと見込みが大きく狂うので、出さない方が安全。取引になれば実績に入る）。
+ * ドル建てが無ければ相場を取りに行かない（毎回の表示で外へ通信しない）。
+ */
+async function upcomingInYen(items: UpcomingItem[], usdIds: Set<string>, rate: UsdJpyRate): Promise<UpcomingItem[]> {
+  if (!items.some((i) => usdIds.has(i.fixedCostId))) return items;
+  const r = await rate("latest");
+  return items.flatMap((i) => {
+    if (!usdIds.has(i.fixedCostId)) return [i];
+    return r === null ? [] : [{ ...i, amount: usdToYen(i.amount, r) }];
+  });
 }
