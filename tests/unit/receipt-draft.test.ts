@@ -13,7 +13,7 @@ import { describe, expect, it } from "vitest";
 import sharp from "sharp";
 import normal from "../fixtures/receipts/normal.json";
 import exclusiveTax from "../fixtures/receipts/exclusive-tax.json";
-import { allocateTax, toDraft } from "@/lib/receipt/schema";
+import { allocateTax, judgeTax, toDraft } from "@/lib/receipt/schema";
 import { splitByCategory } from "@/lib/receipt/split";
 import { matchCategoryId } from "@/lib/receipt/categories";
 import { MAX_RECEIPT_BYTES, validateReceiptImage } from "@/lib/receipt/image";
@@ -227,5 +227,93 @@ describe("P11 カテゴリごとの仕分け（mywork#229）", () => {
     expect(matchCategoryId("日用品", cats)).toBe("3");
     expect(matchCategoryId("その他", cats)).toBeNull();
     expect(matchCategoryId(null, cats)).toBeNull();
+  });
+});
+
+describe("app#42 小計・消費税・合計の整合で内税／外税を決める", () => {
+  // 作った数字だけ（実在のレシートではない）。8% 2行＋10% 1行の内税レシート: 小計 652 = 合計 652、内消費税 8% 32・10% 20
+  const inclusive = {
+    ...normal,
+    subtotal: 652,
+    total: 652,
+    tax_mode: "inclusive",
+    tax_lines: [{ rate: 8, amount: 32 }, { rate: 10, amount: 20 }],
+    items: [
+      { name: "弁当", quantity: null, unit_price: null, amount: 324, tax_rate: 8, category: "食費" },
+      { name: "ティッシュ", quantity: null, unit_price: null, amount: 220, tax_rate: 10, category: "日用品" },
+      { name: "パン", quantity: null, unit_price: null, amount: 108, tax_rate: 8, category: "食費" },
+    ],
+  };
+
+  it("judgeTax: 小計 = 合計は内税、小計＋税 = 合計は外税、どちらも違えば不整合、欠けていれば照合しない", () => {
+    expect(judgeTax(652, 52, 652)).toBe("inclusive");
+    expect(judgeTax(1222, 105, 1327)).toBe("exclusive");
+    expect(judgeTax(1222, 105, 1400)).toBe("mismatch");
+    expect(judgeTax(1222, 0, 1327)).toBe("mismatch");
+    expect(judgeTax(null, 105, 1327)).toBe("unchecked");
+    expect(judgeTax(1222, 105, null)).toBe("unchecked");
+  });
+
+  it("パターン1（内税）: 小計と合計が一致 → 合計をそのまま登録。内消費税の行があっても足さない", () => {
+    const d = draftOf(inclusive);
+    expect(d).toMatchObject({ status: "ok", total: 652, subtotal: 652, taxTotal: 52, taxCheck: "inclusive", taxAllocated: false });
+    expect(d.items.map((i) => i.amount)).toEqual([324, 220, 108]);
+  });
+
+  it("パターン1: AI が「分からない」と答えても金額で内税と決まる", () => {
+    const d = draftOf({ ...inclusive, tax_mode: "unknown" });
+    expect(d).toMatchObject({ status: "ok", total: 652, taxCheck: "inclusive", taxAllocated: false });
+  });
+
+  it("パターン2（外税）: 小計 ≠ 合計で、小計＋消費税 = 合計 → 税込の合計を登録し、取引の和も合計", () => {
+    const d = draftOf(exclusiveTax);
+    expect(d).toMatchObject({ status: "ok", total: 1327, subtotal: 1222, taxTotal: 105, taxCheck: "exclusive", taxAllocated: true });
+    const parts = splitByCategory(d.items.map((i) => ({ amount: i.amount, categoryId: i.category })), d.total!);
+    expect(parts.reduce((s, p) => s + p.amount, 0)).toBe(1327);
+  });
+
+  it("パターン2: AI が内税・分からないと取り違えても、金額で外税と決まり税込で登録する", () => {
+    for (const tax_mode of ["inclusive", "unknown"]) {
+      const d = draftOf({ ...exclusiveTax, tax_mode });
+      expect(d).toMatchObject({ status: "ok", total: 1327, taxCheck: "exclusive", taxAllocated: true });
+      expect(d.items.reduce((s, i) => s + i.amount, 0)).toBe(1327);
+    }
+  });
+
+  it("パターン2: 小計のあとに値引きがあり印字の小計では合わないときは、値引き後の明細の和で照合する", () => {
+    // 印字の小計 1,272（値引き -50 の前）。明細の和 1,222 ＋ 税 105 = 1,327
+    const d = draftOf({ ...exclusiveTax, subtotal: 1272 });
+    expect(d).toMatchObject({ status: "ok", total: 1327, subtotal: 1222, taxCheck: "exclusive" });
+  });
+
+  it("どちらでも合わない: 既存の不整合の扱い（警告を出して確認へ。合計は読めた値のまま）", () => {
+    const d = draftOf({ ...exclusiveTax, total: 1400 });
+    expect(d).toMatchObject({ status: "needs_review", total: 1400, taxCheck: "mismatch" });
+    expect(codes(d)).toEqual(expect.arrayContaining(["subtotal_total_mismatch", "items_total_mismatch"]));
+    expect(d.warnings.find((w) => w.code === "subtotal_total_mismatch")!.message).toMatch(/1,222.*105.*1,400/);
+  });
+
+  it("1円のずれも合わない扱い（完全一致だけ外税とみなす）", () => {
+    const d = draftOf({ ...exclusiveTax, total: 1328 });
+    expect(d).toMatchObject({ status: "needs_review", taxCheck: "mismatch" });
+  });
+
+  it("外税の税の行があるのに 合計 = 小計（合計の欄に小計を読んだおそれ）→ 確認へ", () => {
+    const d = draftOf({ ...exclusiveTax, total: 1222 });
+    expect(d.status).toBe("needs_review");
+    expect(codes(d)).toContain("total_looks_like_subtotal");
+    expect(d.warnings.find((w) => w.code === "total_looks_like_subtotal")!.message).toMatch(/1,327/);
+  });
+
+  it("小計の欄が無い応答（古い形）は、印字された明細の和を小計とみなす", () => {
+    const { subtotal: _omit, ...old } = exclusiveTax;
+    void _omit;
+    const d = draftOf(old);
+    expect(d).toMatchObject({ status: "ok", subtotal: 1222, taxCheck: "exclusive" });
+  });
+
+  it("明細も小計も無ければ照合しない（合計だけで登録できる）", () => {
+    const d = draftOf({ ...normal, subtotal: null, items: [] });
+    expect(d).toMatchObject({ status: "ok", total: 598, subtotal: null, taxCheck: "unchecked" });
   });
 });
