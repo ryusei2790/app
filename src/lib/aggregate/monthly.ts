@@ -39,6 +39,8 @@ export interface AggTx {
   categoryType?: "income" | "expense" | null;
   note: string | null;
   source: string;
+  /** 定期から自動で作った取引（source='auto'）の定期 ID。今月の見込みの二重計上の確認に使う（lib/aggregate/forecast.ts） */
+  fixedCostId?: string | null;
 }
 
 export type PeriodStatus = "past" | "current" | "future";

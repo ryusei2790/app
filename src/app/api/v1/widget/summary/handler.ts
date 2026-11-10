@@ -7,6 +7,8 @@
  *   - 比較は timingSafeEqual（cron と同じ）
  *   - 数字は画面と同じ lib/aggregate（支出＝購入−返金、振替等除外、今月は今日まで）。カテゴリ別などは出さない
  *   - 応答は Cache-Control: no-store（金額を CDN に残さない）
+ *   - income・expense・balance は「見込み込み」（実績＋定期のまだ来ていない今月の回。app#43）。給料日・家賃の日の前でも月の収支が分かるように。
+ *     実績だけの数字は actual、見込みの分は forecast に添える（定期の回が無ければ forecast は 0 で、上の3つは実績と同じ）
  */
 
 import { timingSafeEqual } from "node:crypto";
@@ -29,9 +31,19 @@ export async function widgetSummaryGet(request: Request) {
   const userId = process.env.WIDGET_USER_ID as string;
   const today = todayJst();
   const month = today.slice(0, 7);
-  const { summary: s } = await withUserDb(userId, (db) => loadMonthlySummary(db, userId, month, { today, owner: false }));
+  const { summary: s, forecast: f } = await withUserDb(userId, (db) => loadMonthlySummary(db, userId, month, { today, owner: false }));
   return Response.json(
-    { data: { month, today, income: s.income.total, expense: s.expense.total, balance: s.balance } },
+    {
+      data: {
+        month,
+        today,
+        income: f.income,
+        expense: f.expense,
+        balance: f.balance,
+        actual: { income: s.income.total, expense: s.expense.total, balance: s.balance },
+        forecast: { income: f.forecastIncome, expense: f.forecastExpense, count: f.items.length },
+      },
+    },
     { headers: { "Cache-Control": "no-store" } }
   );
 }

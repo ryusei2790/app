@@ -5,11 +5,14 @@
  *   - 定期のまだ取引になっていない回（仕送り 27日・給料 月末など）。支払日になると定期が取引を作る
  *   - 今日より後の日付で入れた取引（先払いなど）。日付が来ると実績に移る
  * どちらも合計には入れない。月末の見込み ＝ 今の残り ＋ 予定の収入 − 予定の支出。
+ * 上のカードを「見込み込み」にしているとき（forecastIncluded、app#43）は、定期の回はカードの数字に入っているので
+ * 説明の1行と札を「見込みに含む」に変える。月末の見込みは実績の残り（balance）から足すので、計算は変わらない。
  */
 
 "use client";
 
 import Link from "next/link";
+import { FOOTNOTES } from "@/lib/aggregate/definitions";
 import type { ScheduledItem, UpcomingItem } from "@/types/api";
 
 function yen(amount: number): string {
@@ -23,7 +26,19 @@ function shortDate(d: string): string {
 
 type Row = { key: string; date: string; name: string; type: "income" | "expense"; amount: number; from: "fixed" | "entry"; kind?: string };
 
-export function UpcomingList({ items, scheduled = [], balance }: { items: UpcomingItem[]; scheduled?: ScheduledItem[]; balance: number }) {
+export function UpcomingList({
+  items,
+  scheduled = [],
+  balance,
+  forecastIncluded = false,
+}: {
+  items: UpcomingItem[];
+  scheduled?: ScheduledItem[];
+  /** 実績の残り（見込みを足す前） */
+  balance: number;
+  /** 上のカードが定期の見込みを含めて出しているか */
+  forecastIncluded?: boolean;
+}) {
   const rows: Row[] = [
     ...items.map((i): Row => ({ key: `fc-${i.fixed_cost_id}-${i.date}`, date: i.date, name: i.name, type: i.type, amount: i.amount, from: "fixed" })),
     ...scheduled.map((s): Row => ({ key: `tx-${s.id ?? s.date + s.name}`, date: s.date, name: s.name, type: s.type, amount: s.amount, from: "entry", kind: s.kind })),
@@ -46,7 +61,9 @@ export function UpcomingList({ items, scheduled = [], balance }: { items: Upcomi
           定期の収入・支出 →
         </Link>
       </div>
-      <p className="mt-0.5 text-xs text-gray-500">日付になると収支に入ります。まだ合計には入っていません</p>
+      <p className="mt-0.5 text-xs text-gray-500">
+        {forecastIncluded ? FOOTNOTES.upcomingForecast : "日付になると収支に入ります。まだ合計には入っていません"}
+      </p>
 
       <ul className="mt-3 divide-y divide-gray-200" data-testid="upcoming-list">
         {rows.map((r) => (
@@ -55,7 +72,7 @@ export function UpcomingList({ items, scheduled = [], balance }: { items: Upcomi
               <span className="mr-2 tabular-nums text-gray-500">{shortDate(r.date)}</span>
               {r.name}
               <span className="ml-2 rounded bg-white px-1.5 py-0.5 text-[10px] text-gray-500 ring-1 ring-gray-200">
-                {r.from === "fixed" ? "定期" : r.kind === "refund" ? "返金" : r.kind === "transfer" ? "振替" : r.kind === "loan" ? "借入・返済" : "入力済み"}
+                {r.from === "fixed" ? (forecastIncluded ? "定期・見込みに含む" : "定期") : r.kind === "refund" ? "返金" : r.kind === "transfer" ? "振替" : r.kind === "loan" ? "借入・返済" : "入力済み"}
               </span>
             </span>
             <span className={`shrink-0 tabular-nums ${r.type === "income" ? "text-green-700" : "text-gray-900"}`}>

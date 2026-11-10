@@ -1,6 +1,7 @@
 /**
  * @file tests/unit/widget-summary.test.ts
  * @description ウィジェット用 API（mywork#967）。トークンなし・違うトークン・未設定は 401、正しいトークンで今月の収入・支出・合計だけを返す。
+ * 収入・支出・合計は定期の見込み込み（app#43）。実績は actual、見込みの分は forecast。
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -11,7 +12,8 @@ vi.mock("@/lib/db", () => ({
 vi.mock("@/lib/aggregate/load", () => ({
   loadMonthlySummary: vi.fn(async () => ({
     summary: { income: { total: 300, count: 1 }, expense: { total: 120 }, balance: 180, byCategory: [{ name: "食費" }] },
-    upcoming: [],
+    upcoming: [{ fixedCostId: "fc1", date: "2026-10-31", name: "給料", type: "income", amount: 1000 }],
+    forecast: { applies: true, income: 1300, expense: 120, balance: 1180, forecastIncome: 1000, forecastExpense: 0, items: [{}] },
   })),
 }));
 vi.mock("@/lib/date/jst", () => ({ todayJst: () => "2026-10-30" }));
@@ -57,12 +59,20 @@ describe("GET /api/v1/widget/summary", () => {
     expect((await widgetSummaryGet(req("Bearer nope"))).status).toBe(401);
   });
 
-  it("正しいトークンで今月の収入・支出・合計だけを返す（キャッシュさせない）", async () => {
+  it("正しいトークンで今月の収入・支出・合計だけを返す（見込み込み・キャッシュさせない）", async () => {
     const res = await widgetSummaryGet(req("Bearer secret-token"));
     expect(res.status).toBe(200);
     expect(res.headers.get("cache-control")).toBe("no-store");
     expect(await res.json()).toEqual({
-      data: { month: "2026-10", today: "2026-10-30", income: 300, expense: 120, balance: 180 },
+      data: {
+        month: "2026-10",
+        today: "2026-10-30",
+        income: 1300,
+        expense: 120,
+        balance: 1180,
+        actual: { income: 300, expense: 120, balance: 180 },
+        forecast: { income: 1000, expense: 0, count: 1 },
+      },
     });
     expect(withUserDb).toHaveBeenCalledWith("u1", expect.any(Function));
     expect(loadMonthlySummary).toHaveBeenCalledWith({}, "u1", "2026-10", { today: "2026-10-30", owner: false });
