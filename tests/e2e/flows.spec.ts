@@ -9,6 +9,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { createAccount, createUser, login } from "./helpers";
 import { toDraft } from "../../src/lib/receipt/schema";
 import exclusiveTax from "../fixtures/receipts/exclusive-tax.json";
+import mixedReceipt from "../fixtures/receipts/discount-inner-mixed.json";
 
 test("W3 スマホ幅で 取引を追加 → 一覧に出る → 月の合計に入る", async ({ page }) => {
   const user = await createUser("w3");
@@ -133,6 +134,26 @@ test("W4c 小計＋消費税でも合計と合わないレシートは確認へ�
   await expect(page.getByLabel("確認してほしい点")).toContainText("小計（1,222円）＋消費税（105円）と合計（1,400円）が合いません");
   await expect(page.getByLabel("消費税の確認")).toHaveCount(0);
   if (process.env.E2E_SHOT_DIR) await page.screenshot({ path: `${process.env.E2E_SHOT_DIR}/receipt-mismatch.png`, fullPage: true });
+});
+
+test("W4d 割引・同名の2行・「内」の品が混じる外税のレシートは、税率ごとの対象額で照合して警告なし（mywork#1508）", async ({ page }) => {
+  const today = new Date().toISOString().slice(0, 10);
+  await routeParseWith(page, { ...mixedReceipt, purchased_at: today });
+  await startReceipt(page, "w4d");
+
+  await expect(page.getByLabel("合計（円）")).toHaveValue("1721");
+  await expect(page.getByLabel("確認してほしい点")).toHaveCount(0);
+  await expect(page.getByLabel("消費税の確認")).toHaveText("外税: 10%対象 ¥585 ＋ 8%対象 ¥1,136 ＝ 合計 ¥1,721（税込の合計を登録）");
+  await expect(page.getByText("明細 6 行（外税を按分した税込の金額）")).toBeVisible();
+  await expect(page.getByLabel("保存される取引")).toHaveText(/食費 ¥1,136 \/ 日用品 ¥580 \/ その他 ¥5 の 3 件/);
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  expect(overflow).toBeLessThanOrEqual(0);
+  if (process.env.E2E_SHOT_DIR) await page.screenshot({ path: `${process.env.E2E_SHOT_DIR}/receipt-discount-inner-mixed.png`, fullPage: true });
+  await page.getByRole("button", { name: "保存", exact: true }).click();
+  await expect(page.getByText("保存しました")).toBeVisible();
+
+  await page.getByRole("link", { name: "収支一覧へ" }).click();
+  await expect(page.getByText("支出 -¥1,721")).toBeVisible();
 });
 
 test("W5 定期支出を 登録 → 一覧 → 編集 → 一時停止", async ({ page }) => {

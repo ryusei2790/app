@@ -1,0 +1,78 @@
+{
+  "is_receipt": true,
+  "currency": "JPY",
+  "language": "ja",
+  "merchant": "ドラッグストアさくら 東町店",
+  "purchased_at": "2026-11-19",
+  "subtotal": 1585,
+  "total": 1721,
+  "tax_mode": "exclusive",
+  "tax_lines": [
+    {
+      "rate": 10,
+      "amount": 53,
+      "base": 585
+    },
+    {
+      "rate": 8,
+      "amount": 84,
+      "base": 1136
+    }
+  ],
+  "items": [
+    {
+      "name": "野菜ジュース 200ml",
+      "quantity": 2,
+      "unit_price": 198,
+      "amount": 396,
+      "tax_rate": 8,
+      "tax_included": false,
+      "category": "食費"
+    },
+    {
+      "name": "野菜ジュース 200ml",
+      "quantity": null,
+      "unit_price": null,
+      "amount": 198,
+      "tax_rate": 8,
+      "tax_included": false,
+      "category": "食費"
+    },
+    {
+      "name": "割引 20%",
+      "quantity": null,
+      "unit_price": null,
+      "amount": -40,
+      "tax_rate": 8,
+      "tax_included": false,
+      "category": "食費"
+    },
+    {
+      "name": "レジ袋 L",
+      "quantity": null,
+      "unit_price": null,
+      "amount": 5,
+      "tax_rate": 10,
+      "tax_included": true,
+      "category": "その他"
+    },
+    {
+      "name": "フロアモップ",
+      "quantity": null,
+      "unit_price": null,
+      "amount": 528,
+      "tax_rate": 10,
+      "tax_included": false,
+      "category": "日用品"
+    },
+    {
+      "name": "豚こま切れ 420g",
+      "quantity": null,
+      "unit_price": null,
+      "amount": 498,
+      "tax_rate": 8,
+      "tax_included": false,
+      "category": "食費"
+    }
+  ]
+}

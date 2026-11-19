@@ -7,13 +7,16 @@
  * - P4 大きすぎる・画像以外・壊れた画像は拒否／送信前の縮小サイズ
  * - P7 外貨・日本語以外は「対象外」
  * - P11 明細の金額ずれ対策（外税の按分・数量×単価の照合）と、カテゴリごとの仕分け（mywork#229）
+ * - mywork#1508 割引・数量・同名の別行・「内」印の品が混じる外税のレシートを、税率ごとの対象額で照合する
  */
 
 import { describe, expect, it } from "vitest";
 import sharp from "sharp";
 import normal from "../fixtures/receipts/normal.json";
 import exclusiveTax from "../fixtures/receipts/exclusive-tax.json";
-import { allocateTax, judgeTax, toDraft } from "@/lib/receipt/schema";
+import mixed from "../fixtures/receipts/discount-inner-mixed.json";
+import { allocateTax, judgeByRate, judgeInnerMixed, judgeTax, normalizeTaxItems, toDraft } from "@/lib/receipt/schema";
+import { RECEIPT_PROMPT } from "@/lib/receipt/prompt";
 import { splitByCategory } from "@/lib/receipt/split";
 import { matchCategoryId } from "@/lib/receipt/categories";
 import { MAX_RECEIPT_BYTES, validateReceiptImage } from "@/lib/receipt/image";
@@ -315,5 +318,168 @@ describe("app#42 小計・消費税・合計の整合で内税／外税を決め
   it("明細も小計も無ければ照合しない（合計だけで登録できる）", () => {
     const d = draftOf({ ...normal, subtotal: null, items: [] });
     expect(d).toMatchObject({ status: "ok", total: 598, subtotal: null, taxCheck: "unchecked" });
+  });
+});
+
+describe("mywork#1508 割引・数量・同名の行・「内」印の品が混じる外税のレシート", () => {
+  // discount-inner-mixed.json: 本人のレシートの金額だけ（店名・品名は架空）。
+  // 8%: 396 ＋ 198 − 40 ＋ 498 ＝ 1,052（税抜）→ 対象額 1,136（税 84）
+  // 10%: 528（税抜）＋ 5（「内」印・税込）＝ 533 → 対象額 585（足された税 52。印字の税 53 は「内」の品の分を含む）
+  const draftOf = (o: unknown) => toDraft(JSON.stringify(o), "2026-11-19"); // レシートの日付を今日とする
+  const sum = (d: ReturnType<typeof toDraft>) => d.items.reduce((s, i) => s + i.amount, 0);
+  const noBase = { ...mixed, tax_lines: mixed.tax_lines.map((t) => ({ ...t, base: null })) };
+  const dropped = { ...mixed, items: mixed.items.filter((_, k) => k !== 1) }; // 2つ目の同名の行が落ちた読み（アプリで起きたこと）
+
+  it("このレシート: 警告なし。税率ごとの対象額の和 ＝ 合計 で外税と決まり、合計 1,721 を登録", () => {
+    const d = draftOf(mixed);
+    expect(d).toMatchObject({
+      status: "ok", total: 1721, subtotal: 1585, taxTotal: 137, taxCheck: "exclusive", taxBasis: "by_rate", taxAllocated: true, warnings: [],
+    });
+    expect(d.rateTotals).toEqual([{ rate: 10, amount: 585 }, { rate: 8, amount: 1136 }]);
+    expect(sum(d)).toBe(1721);
+  });
+
+  it("同じ品名の2行（@198×2=396 と 198）を両方残す。数量×単価の照合も通る", () => {
+    const d = draftOf(mixed);
+    expect(d.items).toHaveLength(6);
+    expect(d.items.filter((i) => i.name === "野菜ジュース 200ml").map((i) => i.printedAmount)).toEqual([396, 198]);
+    expect(d.items[0]).toMatchObject({ quantity: 2, unitPrice: 198, unitMismatch: false });
+  });
+
+  it("税は「内」の品に足さず、税率ごとの税抜の品だけに按分する（8% は対象額 1,136、10% は 585）", () => {
+    const d = draftOf(mixed);
+    const at = (rate: number) => d.items.filter((i) => i.taxRate === rate).reduce((s, i) => s + i.amount, 0);
+    expect(at(8)).toBe(1136);
+    expect(at(10)).toBe(585);
+    expect(d.items[3]).toMatchObject({ name: "レジ袋 L", amount: 5, printedAmount: 5 });
+    expect(d.items[4].amount).toBe(580); // 528 ＋ 52
+    const parts = splitByCategory(d.items.map((i) => ({ amount: i.amount, categoryId: i.category })), d.total!);
+    expect(parts).toEqual([
+      { categoryId: "食費", amount: 1136 },
+      { categoryId: "日用品", amount: 580 },
+      { categoryId: "その他", amount: 5 },
+    ]);
+  });
+
+  it("AI が内税・分からないと答えても（「含む消費税等」の表示）、金額で外税と決まる", () => {
+    for (const tax_mode of ["inclusive", "unknown"]) {
+      expect(draftOf({ ...mixed, tax_mode })).toMatchObject({ status: "ok", taxCheck: "exclusive", total: 1721 });
+    }
+  });
+
+  it("割引の行に軽減税率の印が無く AI が 10% と読んでも、値引きされた商品（すぐ上の行）の税率で照合する", () => {
+    const items = mixed.items.map((i, k) => (k === 2 ? { ...i, tax_rate: 10 } : i));
+    const d = draftOf({ ...mixed, items });
+    expect(d).toMatchObject({ status: "ok", taxBasis: "by_rate" });
+    expect(sum(d)).toBe(1721);
+  });
+
+  it("対象額の印字が無くても、印字の税と足された税の差が「内」の品の税で説明できれば警告なし", () => {
+    const d = draftOf(noBase);
+    expect(d).toMatchObject({ status: "ok", total: 1721, subtotal: 1585, taxCheck: "exclusive", taxBasis: "inner_mixed", warnings: [] });
+    expect(sum(d)).toBe(1721);
+    expect(d.items[3].amount).toBe(5);
+  });
+
+  it("本当に合わない: 同名の2行目が落ちた読み（明細 1,387）は、対象額があっても警告を残す", () => {
+    for (const o of [dropped, { ...dropped, tax_lines: noBase.tax_lines }]) {
+      const d = draftOf(o);
+      expect(d.status).toBe("needs_review");
+      expect(d.taxCheck).toBe("mismatch");
+      expect(codes(d)).toEqual(expect.arrayContaining(["subtotal_total_mismatch", "items_total_mismatch"]));
+    }
+  });
+
+  it("本当に合わない: 合計・割引・商品の金額の読み違いは警告を残す", () => {
+    const wrongTotal = { ...mixed, total: 1712 };
+    const wrongDiscount = { ...mixed, items: mixed.items.map((i, k) => (k === 2 ? { ...i, amount: -20 } : i)) };
+    const wrongItem = { ...mixed, items: mixed.items.map((i, k) => (k === 5 ? { ...i, amount: 489 } : i)) };
+    for (const o of [wrongTotal, wrongDiscount, wrongItem]) {
+      const d = draftOf(o);
+      expect(d.status).toBe("needs_review");
+      expect(d.taxCheck).toBe("mismatch");
+    }
+  });
+
+  it("対象額だけを読み違えても、合計・明細・消費税が「内」の品の税で説明できれば登録額は正しいので警告しない", () => {
+    const d = draftOf({ ...mixed, tax_lines: [mixed.tax_lines[0], { ...mixed.tax_lines[1], base: 1163 }] });
+    expect(d).toMatchObject({ status: "ok", total: 1721, taxBasis: "inner_mixed" });
+    expect(sum(d)).toBe(1721);
+  });
+
+  it("「内」印の品が無い外税のレシートは、今までどおり 小計＋消費税＝合計 のぴったりだけを認める（1円ずれは確認へ）", () => {
+    const items = mixed.items.map((i) => ({ ...i, tax_included: false }));
+    expect(draftOf({ ...noBase, items }).status).toBe("needs_review");
+  });
+});
+
+describe("mywork#1508 割引（%・円）・数量・外税・内税の型", () => {
+  const item = (name: string, amount: number, tax_rate: number | null, extra: Record<string, unknown> = {}) => ({
+    name, quantity: null, unit_price: null, amount, tax_rate, tax_included: false, category: "食費", ...extra,
+  });
+  const base = { ...normal, merchant: "テスト商店", purchased_at: "2026-10-07" };
+
+  it("内税＋%引き＋円引き＋数量: 明細の和 ＝ 小計 ＝ 合計 で警告なし", () => {
+    const d = draftOf({
+      ...base, subtotal: 700, total: 700, tax_mode: "inclusive", tax_lines: [{ rate: 8, amount: 51, base: 700 }],
+      items: [
+        item("お茶", 300, 8, { quantity: 2, unit_price: 150 }),
+        item("パン", 250, 8),
+        item("割引 20%", -50, null),
+        item("弁当", 230, 8),
+        item("値引", -30, null),
+      ],
+    });
+    expect(d).toMatchObject({ status: "ok", taxCheck: "inclusive", warnings: [] });
+    expect(d.items.reduce((s, i) => s + i.amount, 0)).toBe(700);
+  });
+
+  it("外税＋%引き: 小計＋消費税＝合計（税率ごとの対象額は税抜で印字）。割引の税率は上の商品から引き継ぐ", () => {
+    // 8%: 500 − 100 ＝ 400、税 32 / 10%: 300、税 30 → 合計 762
+    const o = {
+      ...base, subtotal: 700, total: 762, tax_mode: "exclusive",
+      tax_lines: [{ rate: 8, amount: 32, base: 400 }, { rate: 10, amount: 30, base: 300 }],
+      items: [item("肉", 500, 8), item("割引 20%", -100, 10), item("洗剤", 300, 10, { category: "日用品" })],
+    };
+    const d = draftOf(o);
+    expect(d).toMatchObject({ status: "ok", taxCheck: "exclusive", taxBasis: "subtotal", warnings: [] });
+    expect(d.items.map((i) => i.amount)).toEqual([540, -108, 330]);
+  });
+
+  it("外税＋「内」の品＋税抜で印字された対象額: 対象額＋消費税の和 ＝ 合計 で照合する", () => {
+    // 8%: 1,000（税 80）/ 10%: 300（税抜）＋ 110（内・税込）→ 対象額 400、税 40（うち 10 は内の品）。合計 1,520
+    const d = draftOf({
+      ...base, subtotal: 1410, total: 1520, tax_mode: "exclusive",
+      tax_lines: [{ rate: 8, amount: 80, base: 1000 }, { rate: 10, amount: 40, base: 400 }],
+      items: [item("米", 1000, 8), item("電池", 300, 10, { category: "日用品" }), item("袋", 110, 10, { tax_included: true, category: "その他" })],
+    });
+    expect(d).toMatchObject({ status: "ok", taxCheck: "exclusive", taxBasis: "by_rate" });
+    expect(d.items.map((i) => i.amount)).toEqual([1080, 330, 110]);
+  });
+
+  it("judgeByRate: 税率ごとの差が端数1円を超える・明細の税率が欠ける・対象額が欠けると照合しない", () => {
+    const items = normalizeTaxItems(mixed.items, mixed.tax_lines);
+    expect(judgeByRate(items, mixed.tax_lines, 1721)).not.toBeNull();
+    // 8% の対象額を 2円ずらし、合計も合わせる（和は合うが税率ごとの税が説明できない）
+    const shifted = [{ ...mixed.tax_lines[0], base: 583 }, { ...mixed.tax_lines[1], base: 1138 }];
+    expect(judgeByRate(items, shifted, 1721)).toBeNull();
+    expect(judgeByRate(items.map((i, k) => (k === 0 ? { ...i, taxRate: null } : i)), mixed.tax_lines, 1721)).toBeNull();
+    expect(judgeByRate(items, [{ ...mixed.tax_lines[0], base: null }, mixed.tax_lines[1]], 1721)).toBeNull();
+  });
+
+  it("judgeInnerMixed: 「内」の品が無い・印字の税が足された税より少ない・差が「内」の品の税より大きいと照合しない", () => {
+    const items = normalizeTaxItems(mixed.items, mixed.tax_lines);
+    expect(judgeInnerMixed(items, 137, 1721)).not.toBeNull();
+    expect(judgeInnerMixed(items.map((i) => ({ ...i, taxIncluded: false })), 137, 1721)).toBeNull();
+    expect(judgeInnerMixed(items, 135, 1721)).toBeNull();
+    expect(judgeInnerMixed(items, 139, 1721)).toBeNull();
+  });
+
+  it("読み取りの指示に、同名の行を省かない・＠単価 数量・割引の金額・対象額（base）・「内」印（tax_included）の読み方がある", () => {
+    expect(RECEIPT_PROMPT).toMatch(/同じ品名が続けて出てきても、まとめたり、重複とみなして省いたりしない/);
+    expect(RECEIPT_PROMPT).toMatch(/＠198 2 396/); // 半角の @ は P9（送る中身にメールを入れない）の検査に掛かるので全角
+    expect(RECEIPT_PROMPT).toMatch(/-¥40 なら -40/);
+    expect(RECEIPT_PROMPT).toMatch(/"base"/);
+    expect(RECEIPT_PROMPT).toMatch(/"tax_included"/);
   });
 });

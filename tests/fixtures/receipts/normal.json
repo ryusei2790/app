@@ -15,6 +15,7 @@
       "amount": 160,
       "unit_price": null,
       "tax_rate": 8,
+      "tax_included": false,
       "category": "食費"
     },
     {
@@ -23,6 +24,7 @@
       "amount": 238,
       "unit_price": null,
       "tax_rate": 8,
+      "tax_included": false,
       "category": "食費"
     },
     {
@@ -31,6 +33,7 @@
       "amount": 200,
       "unit_price": null,
       "tax_rate": 8,
+      "tax_included": false,
       "category": "食費"
     }
   ]
