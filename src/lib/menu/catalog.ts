@@ -31,7 +31,7 @@ export interface Feature {
 const RAW: Feature[] = [
   { id: "manual", label: "手入力", icon: "✍️", href: "/entry", standard: true, description: "金額・収入/支出・カテゴリー・口座・メモを手で入れて記録する" },
   { id: "receipt", label: "レシート", icon: "📷", href: "/receipts/new", standard: true, description: "レシートを撮ると AI が読み取り、確認して登録する" },
-  { id: "closing", label: "今月の決算", icon: "🧾", href: "/closing", standard: true, description: "決算日に今月の目標達成と、次の月の目標・配分・気をつける点を提案する" },
+  { id: "closing", label: "今月の決算", icon: "🧾", href: "/closing", standard: true, description: "決算日に今月の目標達成と、次の月の目標・配分・気をつける点を提案する。先月やそれより前の月（12か月前まで）もさかのぼって決算できる（やり方: 決算の画面の上の「決算する月」で月を選ぶ →「決算の提案を作る」）。決算の結果から次の月の支出の目標を決められる（先月を決算すれば今月の目標。提案の下の「この結果から〇〇の目標を決める」で候補を選ぶか金額を入れる）" },
   { id: "chat", label: "チャット", icon: "💬", href: "/chat", shell: true, description: "このチャット。機能を探して拡張機能に足す・要望を送る" },
   { id: "settings", label: "設定", icon: "⚙️", href: "/settings", shell: true, description: "口座・カテゴリー・書き出し（CSV・スプレッドシート）・アカウント" },
   { id: "home", label: "カレンダー", icon: "📅", href: "/calendar", description: "日ごとの収支をカレンダーで見る。日付を押すとその日の取引を見て追加できる" },

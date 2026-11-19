@@ -4,6 +4,7 @@
  */
 
 import { withUserDb } from "@/lib/db";
+import { dateOnlyToDb, dbToDateOnly } from "@/lib/date/jst";
 import type { ClosingDay, ClosingResult } from "./bot";
 
 export interface ClosingReportRow {
@@ -61,5 +62,56 @@ export async function saveClosingReport(userId: string, month: string, r: Closin
       update: { ...data, generations: { increment: 1 }, updatedAt: new Date() },
     });
     return toRow(row);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// さかのぼって決算・月の目標（mywork#1238 第2弾）
+// ---------------------------------------------------------------------------
+
+export interface MonthlyGoalRow {
+  month: string;
+  expenseGoal: number;
+  fromMonth: string | null;
+  updatedAt: string;
+}
+
+/** 月の目標（無ければ null） */
+export async function loadGoal(userId: string, month: string): Promise<MonthlyGoalRow | null> {
+  return withUserDb(userId, async (db) => {
+    const g = await db.monthlyGoal.findUnique({ where: { userId_month: { userId, month } } });
+    return g ? { month: g.month, expenseGoal: g.expenseGoal, fromMonth: g.fromMonth, updatedAt: g.updatedAt.toISOString() } : null;
+  });
+}
+
+/** 月の目標を決める（同じ月は上書き）。amount が null なら消す */
+export async function saveGoal(userId: string, month: string, amount: number | null, fromMonth: string | null): Promise<MonthlyGoalRow | null> {
+  return withUserDb(userId, async (db) => {
+    if (amount === null) {
+      await db.monthlyGoal.deleteMany({ where: { userId, month } });
+      return null;
+    }
+    const g = await db.monthlyGoal.upsert({
+      where: { userId_month: { userId, month } },
+      create: { userId, month, expenseGoal: amount, fromMonth },
+      update: { expenseGoal: amount, fromMonth, updatedAt: new Date() },
+    });
+    return { month: g.month, expenseGoal: g.expenseGoal, fromMonth: g.fromMonth, updatedAt: g.updatedAt.toISOString() };
+  });
+}
+
+/**
+ * 取引がある月（"YYYY-MM" の集合）。決算の月の選択肢に「記録なし」と出すために使う。
+ * 日ごとに数える groupBy（1年で最大366行）にして、取引の行そのものは読まない
+ */
+export async function monthsWithRecords(userId: string, fromMonth: string, toMonth: string): Promise<Set<string>> {
+  const [y, m] = toMonth.split("-").map(Number);
+  const end = new Date(Date.UTC(y, m, 1)); // toMonth の翌月1日（含まない）
+  return withUserDb(userId, async (db) => {
+    const rows = await db.transaction.groupBy({
+      by: ["transactionDate"],
+      where: { userId, deletedAt: null, transactionDate: { gte: dateOnlyToDb(`${fromMonth}-01`), lt: end } },
+    });
+    return new Set(rows.map((r) => dbToDateOnly(r.transactionDate).slice(0, 7)));
   });
 }

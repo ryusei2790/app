@@ -21,7 +21,7 @@ import {
 /** アプリが使う表（public スキーマ）。新しい表を足したらここにも足す */
 const APP_TABLES = [
   "profiles", "accounts", "categories", "fixed_costs", "csv_imports", "transactions", "receipt_parse_logs", "receipts",
-  "budget_frames", "budget_rules", "feature_requests", "lp_views", "waitlist_signups",
+  "budget_frames", "budget_rules", "feature_requests", "lp_views", "waitlist_signups", "monthly_goals",
 ];
 
 let A: TestUser;
@@ -183,6 +183,29 @@ describe("S6 機能の要望（feature_requests、mywork#573 第2弾）", () => 
     expect(after.status).toBe("received");
     const spoof = await B.client.from("feature_requests").insert({ user_id: A.id, text: "なりすまし" });
     expect(spoof.error).not.toBeNull();
+  });
+});
+
+describe("S7 月の目標（monthly_goals、mywork#1238 第2弾）", () => {
+  it("自分の目標は作れて読めて消せる。他人の目標は見えず、書き換え・消し・なりすましもできない", async () => {
+    const made = await A.client.from("monthly_goals").insert({ user_id: A.id, month: "2026-11", expense_goal: 120000, from_month: "2026-10" }).select("*");
+    expect(made.error).toBeNull();
+    expect((await B.client.from("monthly_goals").select("*").eq("user_id", A.id)).data).toEqual([]);
+    const upd = await B.client.from("monthly_goals").update({ expense_goal: 1 }).eq("user_id", A.id).select("*");
+    expect(upd.data ?? []).toEqual([]);
+    const del = await B.client.from("monthly_goals").delete().eq("user_id", A.id).select("*");
+    expect(del.data ?? []).toEqual([]);
+    const [kept] = await adminSql<{ expense_goal: number }>("SELECT expense_goal FROM monthly_goals WHERE user_id = $1 AND month = '2026-11'", [A.id]);
+    expect(kept.expense_goal).toBe(120000);
+    const spoof = await B.client.from("monthly_goals").insert({ user_id: A.id, month: "2026-12", expense_goal: 1 });
+    expect(spoof.error).not.toBeNull();
+    const own = await A.client.from("monthly_goals").delete().eq("user_id", A.id).select("*");
+    expect(own.data!.length).toBe(1);
+  });
+  it("0円・1億円以上・形の崩れた月は DB が拒む", async () => {
+    expect((await A.client.from("monthly_goals").insert({ user_id: A.id, month: "2026-11", expense_goal: 0 })).error).not.toBeNull();
+    expect((await A.client.from("monthly_goals").insert({ user_id: A.id, month: "2026-11", expense_goal: 100000000 })).error).not.toBeNull();
+    expect((await A.client.from("monthly_goals").insert({ user_id: A.id, month: "2026-13", expense_goal: 1000 })).error).not.toBeNull();
   });
 });
 
